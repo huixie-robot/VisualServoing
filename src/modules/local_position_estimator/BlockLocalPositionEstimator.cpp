@@ -260,9 +260,9 @@ void BlockLocalPositionEstimator::update()
 	// see which updates are available
 	bool flowUpdated = _sub_flow.updated();
 	bool paramsUpdated = _sub_param_update.updated();
-	bool baroUpdated = _sub_sensor.updated();
+//	bool baroUpdated = _sub_sensor.updated();
 	bool gpsUpdated = _gps_on.get() && _sub_gps.updated();
-	bool homeUpdated = _sub_home.updated();
+    bool homeUpdated = _sub_home.updated();
 	bool visionUpdated = _vision_on.get() && _sub_vision_pos.updated();
 	bool mocapUpdated = _sub_mocap.updated();
 	bool lidarUpdated = (_sub_lidar != NULL) && _sub_lidar->updated();
@@ -282,8 +282,10 @@ void BlockLocalPositionEstimator::update()
 	}
 
 	// determine if we should start estimating
-	_canEstimateZ =
-		(_baroInitialized && _baroFault < fault_lvl_disable);
+//    _canEstimateZ =
+//        (_baroInitialized && _baroFault < fault_lvl_disable);
+
+    _canEstimateZ = (_mocapInitialized && _mocapFault < fault_lvl_disable);
 	_canEstimateXY =
 		(_gpsInitialized && _gpsFault < fault_lvl_disable) ||
 		(_flowInitialized && _flowFault < fault_lvl_disable) ||
@@ -359,7 +361,7 @@ void BlockLocalPositionEstimator::update()
 	predict();
 
 	// sensor corrections/ initializations
-	if (gpsUpdated) {
+    if (gpsUpdated) {
 		if (!_gpsInitialized) {
 			gpsInit();
 
@@ -368,16 +370,17 @@ void BlockLocalPositionEstimator::update()
 		}
 	}
 
-	if (baroUpdated) {
-		if (!_baroInitialized) {
-			baroInit();
+//    if (baroUpdated) {
+//        if (!_baroInitialized) {
+//            baroInit();
 
-		} else {
-			baroCorrect();
-		}
-	}
+//        } else {
+//            baroCorrect();
+//        }
+//    }
 
-	if (lidarUpdated) {
+
+    if (lidarUpdated) {
 		if (!_lidarInitialized) {
 			lidarInit();
 
@@ -386,7 +389,7 @@ void BlockLocalPositionEstimator::update()
 		}
 	}
 
-	if (sonarUpdated) {
+    if (sonarUpdated) {
 		if (!_sonarInitialized) {
 			sonarInit();
 
@@ -395,7 +398,7 @@ void BlockLocalPositionEstimator::update()
 		}
 	}
 
-	if (flowUpdated) {
+    if (flowUpdated) {
 		if (!_flowInitialized) {
 			flowInit();
 
@@ -407,7 +410,7 @@ void BlockLocalPositionEstimator::update()
 		}
 	}
 
-	if (visionUpdated) {
+    if (visionUpdated) {
 		if (!_visionInitialized) {
 			visionInit();
 
@@ -416,7 +419,7 @@ void BlockLocalPositionEstimator::update()
 		}
 	}
 
-	if (mocapUpdated) {
+    if (mocapUpdated) {
 		if (!_mocapInitialized) {
 			mocapInit();
 
@@ -485,7 +488,7 @@ void BlockLocalPositionEstimator::checkTimeouts()
 
 	lidarCheckTimeout();
 	sonarCheckTimeout();
-	baroCheckTimeout();
+//	baroCheckTimeout();
 	gpsCheckTimeout();
 	flowCheckTimeout();
 	visionCheckTimeout();
@@ -578,7 +581,7 @@ void BlockLocalPositionEstimator::publishLocalPos()
 		_pub_lpos.get().dist_bottom_valid = _canEstimateZ;
 		_pub_lpos.get().eph = sqrtf(_P(X_x, X_x) + _P(X_y, X_y));
 		_pub_lpos.get().epv = sqrtf(_P(X_z, X_z));
-		_pub_lpos.update();
+        _pub_lpos.update();
 	}
 }
 

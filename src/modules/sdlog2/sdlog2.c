@@ -112,6 +112,9 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
+// ADDED by Hui
+#include <uORB/topics/image_features.h>
+
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1194,6 +1197,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_land_detected_s land_detected;
 		struct cpuload_s cpuload;
 		struct vehicle_gps_position_s dual_gps_pos;
+        struct image_features_s img_fe;   //Added by Xie
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1255,6 +1259,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_LAND_s log_LAND;
 			struct log_RPL6_s log_RPL6;
 			struct log_LOAD_s log_LOAD;
+            struct log_PXYF_s log_PXYF; //Added by Xie
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1305,6 +1310,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int land_detected_sub;
 		int commander_state_sub;
 		int cpuload_sub;
+        int pxyf_sub; //Added by Xie
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1348,6 +1354,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.land_detected_sub = -1;
 	subs.commander_state_sub = -1;
 	subs.cpuload_sub = -1;
+    subs.pxyf_sub = -1; // Added by Xie
 
 	/* add new topics HERE */
 
@@ -2288,6 +2295,18 @@ int sdlog2_thread_main(int argc, char *argv[])
 			LOGBUFFER_WRITE_AND_COUNT(LOAD);
 
 		}
+
+        /* --- PXYF --- */
+        if(copy_if_updated(ORB_ID(image_features),&subs.pxyf_sub,&buf.img_fe)) { //Added by Xie
+            log_msg.msg_type = LOG_PXYF_MSG;
+            log_msg.body.log_PXYF.time_pxyf = buf.img_fe.timestamp_img_fe;
+            log_msg.body.log_PXYF.valid = buf.img_fe.valid;
+            for(int i=0;i<8;i++)    //TODO fix the magic number here
+            {
+                log_msg.body.log_PXYF.s[i] = buf.img_fe.s[i];
+            }
+            LOGBUFFER_WRITE_AND_COUNT(PXYF);
+        }
 
 		pthread_mutex_lock(&logbuffer_mutex);
 

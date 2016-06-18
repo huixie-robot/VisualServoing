@@ -623,7 +623,16 @@ struct log_RPL5_s {
 /* --- SYSTEM LOAD --- */
 #define LOG_LOAD_MSG 61
 struct log_LOAD_s {
-	float cpu_load;
+    float cpu_load;
+};
+
+
+/* --- SYSTEM LOAD --- */
+#define LOG_PXYF_MSG 62 // ADDED by Xie
+struct log_PXYF_s {
+    uint64_t time_pxyf;
+    uint8_t valid;
+    float s[8];
 };
 
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
@@ -715,6 +724,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(RPL6, "Qfffff", "Tasp,inAsp,trAsp,ufAsp,tpAsp,confAsp"),
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
+    LOG_FORMAT(PXYF,"QMffffffff","t,val,s0,s1,s2,s3,s4,s5,s6,s7"), //ADDED by Xie
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),

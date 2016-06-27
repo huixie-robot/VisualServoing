@@ -112,8 +112,10 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
-// ADDED by Hui
+// ADDED by Xie
 #include <uORB/topics/image_features.h>
+// ADDED by HX
+#include <uORB/topics/vehicle_image_attitude_setpoint.h>
 
 
 #include <systemlib/systemlib.h>
@@ -1170,8 +1172,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_global_position_s global_pos;
 		struct position_setpoint_triplet_s triplet;
 		struct att_pos_mocap_s att_pos_mocap;
-		struct vision_position_estimate_s vision_pos;
-		struct optical_flow_s flow;
+//		struct vision_position_estimate_s vision_pos;
+//		struct optical_flow_s flow;
 		struct rc_channels_s rc;
 		struct differential_pressure_s diff_pres;
 		struct airspeed_s airspeed;
@@ -1187,7 +1189,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct satellite_info_s sat_info;
 		struct wind_estimate_s wind_estimate;
 		struct encoders_s encoders;
-		struct vtol_vehicle_status_s vtol_status;
+//		struct vtol_vehicle_status_s vtol_status;
 		struct time_offset_s time_offset;
 		struct mc_att_ctrl_status_s mc_att_ctrl_status;
 		struct control_state_s ctrl_state;
@@ -1198,6 +1200,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct cpuload_s cpuload;
 		struct vehicle_gps_position_s dual_gps_pos;
         struct image_features_s img_fe;   //Added by Xie
+        struct vehicle_image_attitude_setpoint_s iasp; //Added by HX
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1217,12 +1220,12 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_GPS_s log_GPS;
 			struct log_ATTC_s log_ATTC;
 			struct log_STAT_s log_STAT;
-			struct log_VTOL_s log_VTOL;
+//			struct log_VTOL_s log_VTOL;
 			struct log_RC_s log_RC;
 			struct log_OUT_s log_OUT;
 			struct log_AIRS_s log_AIRS;
 			struct log_ARSP_s log_ARSP;
-			struct log_FLOW_s log_FLOW;
+//			struct log_FLOW_s log_FLOW;
 			struct log_GPOS_s log_GPOS;
 			struct log_GPSP_s log_GPSP;
 			struct log_ESC_s log_ESC;
@@ -1236,30 +1239,31 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_EST3_s log_EST3;
 			struct log_PWR_s log_PWR;
 			struct log_MOCP_s log_MOCP;
-			struct log_VISN_s log_VISN;
+//			struct log_VISN_s log_VISN;
 			struct log_GS0A_s log_GS0A;
 			struct log_GS0B_s log_GS0B;
 			struct log_GS1A_s log_GS1A;
 			struct log_GS1B_s log_GS1B;
 			struct log_TECS_s log_TECS;
 			struct log_WIND_s log_WIND;
-			struct log_ENCD_s log_ENCD;
+//			struct log_ENCD_s log_ENCD;
 			struct log_TSYN_s log_TSYN;
 			struct log_MACS_s log_MACS;
 			struct log_CTS_s log_CTS;
 			struct log_EST4_s log_INO1;
 			struct log_EST5_s log_INO2;
 			struct log_CAMT_s log_CAMT;
-			struct log_RPL1_s log_RPL1;
-			struct log_RPL2_s log_RPL2;
+//			struct log_RPL1_s log_RPL1;
+//			struct log_RPL2_s log_RPL2;
 			struct log_EST6_s log_INO3;
-			struct log_RPL3_s log_RPL3;
-			struct log_RPL4_s log_RPL4;
-			struct log_RPL5_s log_RPL5;
+//			struct log_RPL3_s log_RPL3;
+//			struct log_RPL4_s log_RPL4;
+//			struct log_RPL5_s log_RPL5;
 			struct log_LAND_s log_LAND;
-			struct log_RPL6_s log_RPL6;
+//			struct log_RPL6_s log_RPL6;
 			struct log_LOAD_s log_LOAD;
             struct log_PXYF_s log_PXYF; //Added by Xie
+            struct log_IASP_s log_IASP;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1286,8 +1290,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int gps_pos_sub[2];
 		int sat_info_sub;
 		int att_pos_mocap_sub;
-		int vision_pos_sub;
-		int flow_sub;
+//		int vision_pos_sub;
+//        int flow_sub;
 		int rc_sub;
 		int airspeed_sub;
 		int esc_sub;
@@ -1300,7 +1304,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int system_power_sub;
 		int servorail_status_sub;
 		int wind_sub;
-		int encoders_sub;
+//		int encoders_sub;
 		int tsync_sub;
 		int mc_att_ctrl_status_sub;
 		int ctrl_state_sub;
@@ -1311,6 +1315,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int commander_state_sub;
 		int cpuload_sub;
         int pxyf_sub; //Added by Xie
+        int iasp_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1331,8 +1336,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.global_pos_sub = -1;
 	subs.triplet_sub = -1;
 	subs.att_pos_mocap_sub = -1;
-	subs.vision_pos_sub = -1;
-	subs.flow_sub = -1;
+//	subs.vision_pos_sub = -1;
+//	subs.flow_sub = -1;
 	subs.rc_sub = -1;
 	subs.airspeed_sub = -1;
 	subs.esc_sub = -1;
@@ -1347,7 +1352,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.tsync_sub = -1;
 	subs.mc_att_ctrl_status_sub = -1;
 	subs.ctrl_state_sub = -1;
-	subs.encoders_sub = -1;
+//	subs.encoders_sub = -1;
 	subs.innov_sub = -1;
 	subs.cam_trig_sub = -1;
 	subs.replay_sub = -1;
@@ -1355,6 +1360,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.commander_state_sub = -1;
 	subs.cpuload_sub = -1;
     subs.pxyf_sub = -1; // Added by Xie
+    subs.iasp_sub = -1;
 
 	/* add new topics HERE */
 
@@ -1422,15 +1428,15 @@ int sdlog2_thread_main(int argc, char *argv[])
 
 			break;
 
-		case LOG_TYPE_REPLAY_ONLY:
+        case LOG_TYPE_REPLAY_ONLY:
 
-			subs.replay_sub = orb_subscribe(ORB_ID(ekf2_replay));
-			fds[0].fd = subs.replay_sub;
-			fds[0].events = POLLIN;
+            subs.replay_sub = orb_subscribe(ORB_ID(ekf2_replay));
+            fds[0].fd = subs.replay_sub;
+            fds[0].events = POLLIN;
 
-			poll_to_logging_factor = 1;
+            poll_to_logging_factor = 1;
 
-			break;
+            break;
 	}
 
 	if (poll_to_logging_factor < 1) {
@@ -1469,9 +1475,9 @@ int sdlog2_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(sensor_combined), subs.sensor_sub, &buf.sensor);
 				break;
 
-			case LOG_TYPE_REPLAY_ONLY:
-				orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
-				break;
+            case LOG_TYPE_REPLAY_ONLY:
+                orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
+                break;
 		}
 
 		if ((poll_counter + 1) % poll_to_logging_factor == 0) {
@@ -1528,108 +1534,108 @@ int sdlog2_thread_main(int argc, char *argv[])
 		}
 
 		/* --- EKF2 REPLAY --- */
-		if (log_type == LOG_TYPE_ALL || log_type == LOG_TYPE_REPLAY_ONLY) {
+//		if (log_type == LOG_TYPE_ALL || log_type == LOG_TYPE_REPLAY_ONLY) {
 
-			bool replay_updated = false;
+//			bool replay_updated = false;
 
-			if (log_type == LOG_TYPE_ALL) {
-				// When logging everything we are polling for sensor_combined, so
-				// we need to use the usual copy_if_updated which includes orb_subscribe.
-				replay_updated = copy_if_updated(ORB_ID(ekf2_replay), &subs.replay_sub, &buf.replay);
+//			if (log_type == LOG_TYPE_ALL) {
+//				// When logging everything we are polling for sensor_combined, so
+//				// we need to use the usual copy_if_updated which includes orb_subscribe.
+//				replay_updated = copy_if_updated(ORB_ID(ekf2_replay), &subs.replay_sub, &buf.replay);
 
-			} else {
-				// We poll on the replay topic so we know that it was updated
-				// but we need to copy it again since we are re-using the buffer.
-				orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
-				replay_updated = true;
-			}
+//			} else {
+//				// We poll on the replay topic so we know that it was updated
+//				// but we need to copy it again since we are re-using the buffer.
+//				orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
+//				replay_updated = true;
+//			}
 
-			if (replay_updated) {
-				log_msg.msg_type = LOG_RPL1_MSG;
-				log_msg.body.log_RPL1.time_ref = buf.replay.time_ref;
-				log_msg.body.log_RPL1.gyro_integral_dt = buf.replay.gyro_integral_dt;
-				log_msg.body.log_RPL1.accelerometer_integral_dt = buf.replay.accelerometer_integral_dt;
-				log_msg.body.log_RPL1.magnetometer_timestamp = buf.replay.magnetometer_timestamp;
-				log_msg.body.log_RPL1.baro_timestamp = buf.replay.baro_timestamp;
-				log_msg.body.log_RPL1.gyro_integral_x_rad = buf.replay.gyro_integral_rad[0];
-				log_msg.body.log_RPL1.gyro_integral_y_rad = buf.replay.gyro_integral_rad[1];
-				log_msg.body.log_RPL1.gyro_integral_z_rad = buf.replay.gyro_integral_rad[2];
-				log_msg.body.log_RPL1.accelerometer_integral_x_m_s = buf.replay.accelerometer_integral_m_s[0];
-				log_msg.body.log_RPL1.accelerometer_integral_y_m_s = buf.replay.accelerometer_integral_m_s[1];
-				log_msg.body.log_RPL1.accelerometer_integral_z_m_s = buf.replay.accelerometer_integral_m_s[2];
-				log_msg.body.log_RPL1.magnetometer_x_ga = buf.replay.magnetometer_ga[0];
-				log_msg.body.log_RPL1.magnetometer_y_ga = buf.replay.magnetometer_ga[1];
-				log_msg.body.log_RPL1.magnetometer_z_ga = buf.replay.magnetometer_ga[2];
-				log_msg.body.log_RPL1.baro_alt_meter = buf.replay.baro_alt_meter;
-				LOGBUFFER_WRITE_AND_COUNT(RPL1);
+//			if (replay_updated) {
+//				log_msg.msg_type = LOG_RPL1_MSG;
+//				log_msg.body.log_RPL1.time_ref = buf.replay.time_ref;
+//				log_msg.body.log_RPL1.gyro_integral_dt = buf.replay.gyro_integral_dt;
+//				log_msg.body.log_RPL1.accelerometer_integral_dt = buf.replay.accelerometer_integral_dt;
+//				log_msg.body.log_RPL1.magnetometer_timestamp = buf.replay.magnetometer_timestamp;
+//				log_msg.body.log_RPL1.baro_timestamp = buf.replay.baro_timestamp;
+//				log_msg.body.log_RPL1.gyro_integral_x_rad = buf.replay.gyro_integral_rad[0];
+//				log_msg.body.log_RPL1.gyro_integral_y_rad = buf.replay.gyro_integral_rad[1];
+//				log_msg.body.log_RPL1.gyro_integral_z_rad = buf.replay.gyro_integral_rad[2];
+//				log_msg.body.log_RPL1.accelerometer_integral_x_m_s = buf.replay.accelerometer_integral_m_s[0];
+//				log_msg.body.log_RPL1.accelerometer_integral_y_m_s = buf.replay.accelerometer_integral_m_s[1];
+//				log_msg.body.log_RPL1.accelerometer_integral_z_m_s = buf.replay.accelerometer_integral_m_s[2];
+//				log_msg.body.log_RPL1.magnetometer_x_ga = buf.replay.magnetometer_ga[0];
+//				log_msg.body.log_RPL1.magnetometer_y_ga = buf.replay.magnetometer_ga[1];
+//				log_msg.body.log_RPL1.magnetometer_z_ga = buf.replay.magnetometer_ga[2];
+//				log_msg.body.log_RPL1.baro_alt_meter = buf.replay.baro_alt_meter;
+//				LOGBUFFER_WRITE_AND_COUNT(RPL1);
 
-				// only log the gps replay data if it actually updated
-				if (buf.replay.time_usec > 0) {
-					log_msg.msg_type = LOG_RPL2_MSG;
-					log_msg.body.log_RPL2.time_pos_usec = buf.replay.time_usec;
-					log_msg.body.log_RPL2.time_vel_usec = buf.replay.time_usec_vel;
-					log_msg.body.log_RPL2.lat = buf.replay.lat;
-					log_msg.body.log_RPL2.lon = buf.replay.lon;
-					log_msg.body.log_RPL2.alt = buf.replay.alt;
-					log_msg.body.log_RPL2.fix_type = buf.replay.fix_type;
-					log_msg.body.log_RPL2.nsats = buf.replay.nsats;
-					log_msg.body.log_RPL2.eph = buf.replay.eph;
-					log_msg.body.log_RPL2.epv = buf.replay.epv;
-					log_msg.body.log_RPL2.sacc = buf.replay.sacc;
-					log_msg.body.log_RPL2.vel_m_s = buf.replay.vel_m_s;
-					log_msg.body.log_RPL2.vel_n_m_s = buf.replay.vel_n_m_s;
-					log_msg.body.log_RPL2.vel_e_m_s = buf.replay.vel_e_m_s;
-					log_msg.body.log_RPL2.vel_d_m_s = buf.replay.vel_d_m_s;
-					log_msg.body.log_RPL2.vel_ned_valid = buf.replay.vel_ned_valid;
-					LOGBUFFER_WRITE_AND_COUNT(RPL2);
-				}
+//				// only log the gps replay data if it actually updated
+//				if (buf.replay.time_usec > 0) {
+//					log_msg.msg_type = LOG_RPL2_MSG;
+//					log_msg.body.log_RPL2.time_pos_usec = buf.replay.time_usec;
+//					log_msg.body.log_RPL2.time_vel_usec = buf.replay.time_usec_vel;
+//					log_msg.body.log_RPL2.lat = buf.replay.lat;
+//					log_msg.body.log_RPL2.lon = buf.replay.lon;
+//					log_msg.body.log_RPL2.alt = buf.replay.alt;
+//					log_msg.body.log_RPL2.fix_type = buf.replay.fix_type;
+//					log_msg.body.log_RPL2.nsats = buf.replay.nsats;
+//					log_msg.body.log_RPL2.eph = buf.replay.eph;
+//					log_msg.body.log_RPL2.epv = buf.replay.epv;
+//					log_msg.body.log_RPL2.sacc = buf.replay.sacc;
+//					log_msg.body.log_RPL2.vel_m_s = buf.replay.vel_m_s;
+//					log_msg.body.log_RPL2.vel_n_m_s = buf.replay.vel_n_m_s;
+//					log_msg.body.log_RPL2.vel_e_m_s = buf.replay.vel_e_m_s;
+//					log_msg.body.log_RPL2.vel_d_m_s = buf.replay.vel_d_m_s;
+//					log_msg.body.log_RPL2.vel_ned_valid = buf.replay.vel_ned_valid;
+//					LOGBUFFER_WRITE_AND_COUNT(RPL2);
+//				}
 
-				if (buf.replay.flow_timestamp > 0) {
-					log_msg.msg_type = LOG_RPL3_MSG;
-					log_msg.body.log_RPL3.time_flow_usec = buf.replay.flow_timestamp;
-					log_msg.body.log_RPL3.flow_integral_x = buf.replay.flow_pixel_integral[0];
-					log_msg.body.log_RPL3.flow_integral_y = buf.replay.flow_pixel_integral[1];
-					log_msg.body.log_RPL3.gyro_integral_x = buf.replay.flow_gyro_integral[0];
-					log_msg.body.log_RPL3.gyro_integral_y = buf.replay.flow_gyro_integral[1];
-					log_msg.body.log_RPL3.flow_time_integral = buf.replay.flow_time_integral;
-					log_msg.body.log_RPL3.flow_quality = buf.replay.flow_quality;
-					LOGBUFFER_WRITE_AND_COUNT(RPL3);
-				}
+//				if (buf.replay.flow_timestamp > 0) {
+//					log_msg.msg_type = LOG_RPL3_MSG;
+//					log_msg.body.log_RPL3.time_flow_usec = buf.replay.flow_timestamp;
+//					log_msg.body.log_RPL3.flow_integral_x = buf.replay.flow_pixel_integral[0];
+//					log_msg.body.log_RPL3.flow_integral_y = buf.replay.flow_pixel_integral[1];
+//					log_msg.body.log_RPL3.gyro_integral_x = buf.replay.flow_gyro_integral[0];
+//					log_msg.body.log_RPL3.gyro_integral_y = buf.replay.flow_gyro_integral[1];
+//					log_msg.body.log_RPL3.flow_time_integral = buf.replay.flow_time_integral;
+//					log_msg.body.log_RPL3.flow_quality = buf.replay.flow_quality;
+//					LOGBUFFER_WRITE_AND_COUNT(RPL3);
+//				}
 
-				if (buf.replay.rng_timestamp > 0) {
-					log_msg.msg_type = LOG_RPL4_MSG;
-					log_msg.body.log_RPL4.time_rng_usec = buf.replay.rng_timestamp;
-					log_msg.body.log_RPL4.range_to_ground = buf.replay.range_to_ground;
-					LOGBUFFER_WRITE_AND_COUNT(RPL4);
-				}
+//				if (buf.replay.rng_timestamp > 0) {
+//					log_msg.msg_type = LOG_RPL4_MSG;
+//					log_msg.body.log_RPL4.time_rng_usec = buf.replay.rng_timestamp;
+//					log_msg.body.log_RPL4.range_to_ground = buf.replay.range_to_ground;
+//					LOGBUFFER_WRITE_AND_COUNT(RPL4);
+//				}
 
-				if (buf.replay.asp_timestamp > 0) {
-					log_msg.msg_type = LOG_RPL6_MSG;
-					log_msg.body.log_RPL6.time_airs_usec = buf.replay.asp_timestamp;
-					log_msg.body.log_RPL6.indicated_airspeed_m_s = buf.replay.indicated_airspeed_m_s;
-					log_msg.body.log_RPL6.true_airspeed_m_s = buf.replay.true_airspeed_m_s;
-					log_msg.body.log_RPL6.true_airspeed_unfiltered_m_s = buf.replay.true_airspeed_unfiltered_m_s;
-					log_msg.body.log_RPL6.air_temperature_celsius = buf.replay.air_temperature_celsius;
-					log_msg.body.log_RPL6.confidence = buf.replay.confidence;
-					LOGBUFFER_WRITE_AND_COUNT(RPL6);
-				}
+//				if (buf.replay.asp_timestamp > 0) {
+//					log_msg.msg_type = LOG_RPL6_MSG;
+//					log_msg.body.log_RPL6.time_airs_usec = buf.replay.asp_timestamp;
+//					log_msg.body.log_RPL6.indicated_airspeed_m_s = buf.replay.indicated_airspeed_m_s;
+//					log_msg.body.log_RPL6.true_airspeed_m_s = buf.replay.true_airspeed_m_s;
+//					log_msg.body.log_RPL6.true_airspeed_unfiltered_m_s = buf.replay.true_airspeed_unfiltered_m_s;
+//					log_msg.body.log_RPL6.air_temperature_celsius = buf.replay.air_temperature_celsius;
+//					log_msg.body.log_RPL6.confidence = buf.replay.confidence;
+//					LOGBUFFER_WRITE_AND_COUNT(RPL6);
+//				}
 
-				if (buf.replay.ev_timestamp > 0) {
-					log_msg.msg_type = LOG_RPL5_MSG;
-					log_msg.body.log_RPL5.time_ev_usec = buf.replay.ev_timestamp;
-					log_msg.body.log_RPL5.x = buf.replay.pos_ev[0];
-					log_msg.body.log_RPL5.y = buf.replay.pos_ev[1];
-					log_msg.body.log_RPL5.z = buf.replay.pos_ev[2];
-					log_msg.body.log_RPL5.q0 = buf.replay.quat_ev[0];
-					log_msg.body.log_RPL5.q1 = buf.replay.quat_ev[1];
-					log_msg.body.log_RPL5.q2 = buf.replay.quat_ev[2];
-					log_msg.body.log_RPL5.q3 = buf.replay.quat_ev[3];
-					log_msg.body.log_RPL5.pos_err = buf.replay.pos_err;
-					log_msg.body.log_RPL5.ang_err = buf.replay.ang_err;
-					LOGBUFFER_WRITE_AND_COUNT(RPL5);
-				}
-			}
-		}
+//				if (buf.replay.ev_timestamp > 0) {
+//					log_msg.msg_type = LOG_RPL5_MSG;
+//					log_msg.body.log_RPL5.time_ev_usec = buf.replay.ev_timestamp;
+//					log_msg.body.log_RPL5.x = buf.replay.pos_ev[0];
+//					log_msg.body.log_RPL5.y = buf.replay.pos_ev[1];
+//					log_msg.body.log_RPL5.z = buf.replay.pos_ev[2];
+//					log_msg.body.log_RPL5.q0 = buf.replay.quat_ev[0];
+//					log_msg.body.log_RPL5.q1 = buf.replay.quat_ev[1];
+//					log_msg.body.log_RPL5.q2 = buf.replay.quat_ev[2];
+//					log_msg.body.log_RPL5.q3 = buf.replay.quat_ev[3];
+//					log_msg.body.log_RPL5.pos_err = buf.replay.pos_err;
+//					log_msg.body.log_RPL5.ang_err = buf.replay.ang_err;
+//					LOGBUFFER_WRITE_AND_COUNT(RPL5);
+//				}
+//			}
+//		}
 
 		if (log_type == LOG_TYPE_ALL || log_type == LOG_TYPE_NORMAL) {
 
@@ -1716,15 +1722,15 @@ int sdlog2_thread_main(int argc, char *argv[])
 				}
 			}
 
-			/* --- VTOL VEHICLE STATUS --- */
-			if(copy_if_updated(ORB_ID(vtol_vehicle_status), &subs.vtol_status_sub, &buf.vtol_status)) {
-				log_msg.msg_type = LOG_VTOL_MSG;
-				log_msg.body.log_VTOL.airspeed_tot = buf.vtol_status.airspeed_tot;
-				log_msg.body.log_VTOL.rw_mode = buf.vtol_status.vtol_in_rw_mode;
-				log_msg.body.log_VTOL.trans_mode = buf.vtol_status.vtol_in_trans_mode;
-				log_msg.body.log_VTOL.failsafe_mode = buf.vtol_status.vtol_transition_failsafe;
-				LOGBUFFER_WRITE_AND_COUNT(VTOL);
-			}
+//			/* --- VTOL VEHICLE STATUS --- */
+//			if(copy_if_updated(ORB_ID(vtol_vehicle_status), &subs.vtol_status_sub, &buf.vtol_status)) {
+//				log_msg.msg_type = LOG_VTOL_MSG;
+//				log_msg.body.log_VTOL.airspeed_tot = buf.vtol_status.airspeed_tot;
+//				log_msg.body.log_VTOL.rw_mode = buf.vtol_status.vtol_in_rw_mode;
+//				log_msg.body.log_VTOL.trans_mode = buf.vtol_status.vtol_in_trans_mode;
+//				log_msg.body.log_VTOL.failsafe_mode = buf.vtol_status.vtol_transition_failsafe;
+//				LOGBUFFER_WRITE_AND_COUNT(VTOL);
+//			}
 
 			/* --- GPS POSITION - UNIT #1 --- */
 			if (gps_pos_updated) {
@@ -1978,37 +1984,37 @@ int sdlog2_thread_main(int argc, char *argv[])
 				LOGBUFFER_WRITE_AND_COUNT(MOCP);
 			}
 
-			/* --- VISION POSITION --- */
-			if (copy_if_updated(ORB_ID(vision_position_estimate), &subs.vision_pos_sub, &buf.vision_pos)) {
-				log_msg.msg_type = LOG_VISN_MSG;
-				log_msg.body.log_VISN.x = buf.vision_pos.x;
-				log_msg.body.log_VISN.y = buf.vision_pos.y;
-				log_msg.body.log_VISN.z = buf.vision_pos.z;
-				log_msg.body.log_VISN.vx = buf.vision_pos.vx;
-				log_msg.body.log_VISN.vy = buf.vision_pos.vy;
-				log_msg.body.log_VISN.vz = buf.vision_pos.vz;
-				log_msg.body.log_VISN.qw = buf.vision_pos.q[0]; // vision_position_estimate uses [w,x,y,z] convention
-				log_msg.body.log_VISN.qx = buf.vision_pos.q[1];
-				log_msg.body.log_VISN.qy = buf.vision_pos.q[2];
-				log_msg.body.log_VISN.qz = buf.vision_pos.q[3];
-				LOGBUFFER_WRITE_AND_COUNT(VISN);
-			}
+//			/* --- VISION POSITION --- */
+//			if (copy_if_updated(ORB_ID(vision_position_estimate), &subs.vision_pos_sub, &buf.vision_pos)) {
+//				log_msg.msg_type = LOG_VISN_MSG;
+//				log_msg.body.log_VISN.x = buf.vision_pos.x;
+//				log_msg.body.log_VISN.y = buf.vision_pos.y;
+//				log_msg.body.log_VISN.z = buf.vision_pos.z;
+//				log_msg.body.log_VISN.vx = buf.vision_pos.vx;
+//				log_msg.body.log_VISN.vy = buf.vision_pos.vy;
+//				log_msg.body.log_VISN.vz = buf.vision_pos.vz;
+//				log_msg.body.log_VISN.qw = buf.vision_pos.q[0]; // vision_position_estimate uses [w,x,y,z] convention
+//				log_msg.body.log_VISN.qx = buf.vision_pos.q[1];
+//				log_msg.body.log_VISN.qy = buf.vision_pos.q[2];
+//				log_msg.body.log_VISN.qz = buf.vision_pos.q[3];
+//				LOGBUFFER_WRITE_AND_COUNT(VISN);
+//			}
 
 			/* --- FLOW --- */
-			if (copy_if_updated(ORB_ID(optical_flow), &subs.flow_sub, &buf.flow)) {
-				log_msg.msg_type = LOG_FLOW_MSG;
-				log_msg.body.log_FLOW.ground_distance_m = buf.flow.ground_distance_m;
-				log_msg.body.log_FLOW.gyro_temperature = buf.flow.gyro_temperature;
-				log_msg.body.log_FLOW.gyro_x_rate_integral = buf.flow.gyro_x_rate_integral;
-				log_msg.body.log_FLOW.gyro_y_rate_integral = buf.flow.gyro_y_rate_integral;
-				log_msg.body.log_FLOW.gyro_z_rate_integral = buf.flow.gyro_z_rate_integral;
-				log_msg.body.log_FLOW.integration_timespan = buf.flow.integration_timespan;
-				log_msg.body.log_FLOW.pixel_flow_x_integral = buf.flow.pixel_flow_x_integral;
-				log_msg.body.log_FLOW.pixel_flow_y_integral = buf.flow.pixel_flow_y_integral;
-				log_msg.body.log_FLOW.quality = buf.flow.quality;
-				log_msg.body.log_FLOW.sensor_id = buf.flow.sensor_id;
-				LOGBUFFER_WRITE_AND_COUNT(FLOW);
-			}
+//			if (copy_if_updated(ORB_ID(optical_flow), &subs.flow_sub, &buf.flow)) {
+//				log_msg.msg_type = LOG_FLOW_MSG;
+//				log_msg.body.log_FLOW.ground_distance_m = buf.flow.ground_distance_m;
+//				log_msg.body.log_FLOW.gyro_temperature = buf.flow.gyro_temperature;
+//				log_msg.body.log_FLOW.gyro_x_rate_integral = buf.flow.gyro_x_rate_integral;
+//				log_msg.body.log_FLOW.gyro_y_rate_integral = buf.flow.gyro_y_rate_integral;
+//				log_msg.body.log_FLOW.gyro_z_rate_integral = buf.flow.gyro_z_rate_integral;
+//				log_msg.body.log_FLOW.integration_timespan = buf.flow.integration_timespan;
+//				log_msg.body.log_FLOW.pixel_flow_x_integral = buf.flow.pixel_flow_x_integral;
+//				log_msg.body.log_FLOW.pixel_flow_y_integral = buf.flow.pixel_flow_y_integral;
+//				log_msg.body.log_FLOW.quality = buf.flow.quality;
+//				log_msg.body.log_FLOW.sensor_id = buf.flow.sensor_id;
+//				LOGBUFFER_WRITE_AND_COUNT(FLOW);
+//			}
 
 			/* --- RC CHANNELS --- */
 			if (copy_if_updated(ORB_ID(rc_channels), &subs.rc_sub, &buf.rc)) {
@@ -2215,14 +2221,14 @@ int sdlog2_thread_main(int argc, char *argv[])
 			}
 
 			/* --- ENCODERS --- */
-			if (copy_if_updated(ORB_ID(encoders), &subs.encoders_sub, &buf.encoders)) {
-				log_msg.msg_type = LOG_ENCD_MSG;
-				log_msg.body.log_ENCD.cnt0 = buf.encoders.counts[0];
-				log_msg.body.log_ENCD.vel0 = buf.encoders.velocity[0];
-				log_msg.body.log_ENCD.cnt1 = buf.encoders.counts[1];
-				log_msg.body.log_ENCD.vel1 = buf.encoders.velocity[1];
-				LOGBUFFER_WRITE_AND_COUNT(ENCD);
-			}
+//			if (copy_if_updated(ORB_ID(encoders), &subs.encoders_sub, &buf.encoders)) {
+//				log_msg.msg_type = LOG_ENCD_MSG;
+//				log_msg.body.log_ENCD.cnt0 = buf.encoders.counts[0];
+//				log_msg.body.log_ENCD.vel0 = buf.encoders.velocity[0];
+//				log_msg.body.log_ENCD.cnt1 = buf.encoders.counts[1];
+//				log_msg.body.log_ENCD.vel1 = buf.encoders.velocity[1];
+//				LOGBUFFER_WRITE_AND_COUNT(ENCD);
+//			}
 
 			/* --- TIMESYNC OFFSET --- */
 			if (copy_if_updated(ORB_ID(time_offset), &subs.tsync_sub, &buf.time_offset)) {
@@ -2306,6 +2312,17 @@ int sdlog2_thread_main(int argc, char *argv[])
                 log_msg.body.log_PXYF.s[i] = buf.img_fe.s[i];
             }
             LOGBUFFER_WRITE_AND_COUNT(PXYF);
+        }
+
+        /* --- IASP --- */
+        if(copy_if_updated(ORB_ID(vehicle_image_attitude_setpoint),&subs.iasp_sub,&buf.iasp)) { //Added by Xie
+            log_msg.msg_type = LOG_IASP_MSG;
+            log_msg.body.log_IASP.valid = buf.iasp.valid;
+            log_msg.body.log_IASP.roll_body = buf.iasp.roll_body;
+            log_msg.body.log_IASP.pitch_body = buf.iasp.pitch_body;
+            log_msg.body.log_IASP.yaw_body = buf.iasp.yaw_body;
+            log_msg.body.log_IASP.thrust = buf.iasp.thrust;
+            LOGBUFFER_WRITE_AND_COUNT(IASP);
         }
 
 		pthread_mutex_lock(&logbuffer_mutex);

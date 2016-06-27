@@ -1,4 +1,35 @@
 
+/**
+ * Minimum manual thrust
+ *
+ * Minimum vertical thrust. It's recommended to set it > 0 to avoid free fall with zero thrust.
+ *
+ * @unit norm
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VCN_MANTHR_MIN, 0.08f);
+
+/**
+ * Maximum manual thrust
+ *
+ * Limit max allowed thrust. Setting a value of one can put
+ * the system into actuator saturation as no spread between
+ * the motors is possible any more. A value of 0.8 - 0.9
+ * is recommended.
+ *
+ * @unit norm
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VCN_MANTHR_MAX, 0.9f);
+
 
 /**
  * Minimum thrust in auto thrust control
@@ -221,3 +252,62 @@ PARAM_DEFINE_FLOAT(VCN_XY_FF, 0.5f);
  */
 PARAM_DEFINE_FLOAT(VCN_VELD_LP, 5.0f);
 
+/**
+ * Max manual roll
+ *
+ * @unit deg
+ * @min 0.0
+ * @max 90.0
+ * @decimal 1
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VCN_MAN_R_MAX, 35.0f);
+
+/**
+ * Max manual pitch
+ *
+ * @unit deg
+ * @min 0.0
+ * @max 90.0
+ * @decimal 1
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VCN_MAN_P_MAX, 35.0f);
+
+/**
+ * Max manual yaw rate
+ *
+ * @unit deg/s
+ * @min 0.0
+ * @max 400
+ * @decimal 1
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VCN_MAN_Y_MAX, 200.0f);
+
+/**
+ * Maximum horizonal acceleration in velocity controlled modes
+ *
+ * @unit m/s/s
+ * @min 0.5
+ * @max 15.0
+ * @increment 1
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VCN_ACC_HOR_MAX, 1.0f);
+
+/**
+ * Maximum tilt angle in air
+ *
+ * Limits maximum tilt in AUTO and POSCTRL modes during flight.
+ *
+ * @unit deg
+ * @min 0.0
+ * @max 90.0
+ * @decimal 1
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VCN_TILTMAX_AIR, 12.0f);
+
+PARAM_DEFINE_INT32(IBVS_ENABLE, 0);

@@ -217,21 +217,21 @@ struct log_ARSP_s {
 };
 
 /* --- FLOW - OPTICAL FLOW --- */
-#define LOG_FLOW_MSG 15
-struct log_FLOW_s {
-	uint8_t sensor_id;
-	float pixel_flow_x_integral;
-	float pixel_flow_y_integral;
-	float gyro_x_rate_integral;
-	float gyro_y_rate_integral;
-	float gyro_z_rate_integral;
-	float ground_distance_m;
-	uint32_t integration_timespan;
-	uint32_t time_since_last_sonar_update;
-	uint16_t frame_count_since_last_readout;
-	int16_t gyro_temperature;
-	uint8_t	quality;
-};
+//#define LOG_FLOW_MSG 15
+//struct log_FLOW_s {
+//    uint8_t sensor_id;
+//    float pixel_flow_x_integral;
+//    float pixel_flow_y_integral;
+//    float gyro_x_rate_integral;
+//    float gyro_y_rate_integral;
+//    float gyro_z_rate_integral;
+//    float ground_distance_m;
+//    uint32_t integration_timespan;
+//    uint32_t time_since_last_sonar_update;
+//    uint16_t frame_count_since_last_readout;
+//    int16_t gyro_temperature;
+//    uint8_t	quality;
+//};
 
 /* --- GPOS - GLOBAL POSITION ESTIMATE --- */
 #define LOG_GPOS_MSG 16
@@ -437,40 +437,40 @@ struct log_TEL_s {
 };
 
 /* --- VISN - VISION POSITION --- */
-#define LOG_VISN_MSG 40
-struct log_VISN_s {
-	float x;
-	float y;
-	float z;
-	float vx;
-	float vy;
-	float vz;
-	float qw;
-	float qx;
-	float qy;
-	float qz;
-};
+//#define LOG_VISN_MSG 40
+//struct log_VISN_s {
+//	float x;
+//	float y;
+//	float z;
+//	float vx;
+//	float vy;
+//	float vz;
+//	float qw;
+//	float qx;
+//	float qy;
+//	float qz;
+//};
 
 /* --- ENCODERS - ENCODER DATA --- */
-#define LOG_ENCD_MSG 41
-struct log_ENCD_s {
-	int64_t cnt0;
-	float vel0;
-	int64_t cnt1;
-	float vel1;
-};
+//#define LOG_ENCD_MSG 41
+//struct log_ENCD_s {
+//	int64_t cnt0;
+//	float vel0;
+//	int64_t cnt1;
+//	float vel1;
+//};
 
 /* --- AIR SPEED SENSORS - DIFF. PRESSURE --- */
 #define LOG_AIR1_MSG 42
 
-/* --- VTOL - VTOL VEHICLE STATUS */
-#define LOG_VTOL_MSG 43
-struct log_VTOL_s {
-	float airspeed_tot;
-	uint8_t rw_mode;
-	uint8_t trans_mode;
-	uint8_t failsafe_mode;
-};
+///* --- VTOL - VTOL VEHICLE STATUS */
+//#define LOG_VTOL_MSG 43
+//struct log_VTOL_s {
+//	float airspeed_tot;
+//	uint8_t rw_mode;
+//	uint8_t trans_mode;
+//	uint8_t failsafe_mode;
+//};
 
 /* --- TIMESYNC - TIME SYNCHRONISATION OFFSET */
 #define LOG_TSYN_MSG 44
@@ -515,43 +515,43 @@ struct log_EST5_s {
 #define LOG_OUT1_MSG 50
 
 /* --- EKF2 REPLAY Part 1 --- */
-#define LOG_RPL1_MSG 51
-struct log_RPL1_s {
-	uint64_t time_ref;
-	uint64_t gyro_integral_dt;
-	uint64_t accelerometer_integral_dt;
-	uint64_t magnetometer_timestamp;
-	uint64_t baro_timestamp;
-	float gyro_integral_x_rad;
-	float gyro_integral_y_rad;
-	float gyro_integral_z_rad;
-	float accelerometer_integral_x_m_s;
-	float accelerometer_integral_y_m_s;
-	float accelerometer_integral_z_m_s;
-	float magnetometer_x_ga;
-	float magnetometer_y_ga;
-	float magnetometer_z_ga;
-	float baro_alt_meter;
-};
+//#define LOG_RPL1_MSG 51
+//struct log_RPL1_s {
+//	uint64_t time_ref;
+//	uint64_t gyro_integral_dt;
+//	uint64_t accelerometer_integral_dt;
+//	uint64_t magnetometer_timestamp;
+//	uint64_t baro_timestamp;
+//	float gyro_integral_x_rad;
+//	float gyro_integral_y_rad;
+//	float gyro_integral_z_rad;
+//	float accelerometer_integral_x_m_s;
+//	float accelerometer_integral_y_m_s;
+//	float accelerometer_integral_z_m_s;
+//	float magnetometer_x_ga;
+//	float magnetometer_y_ga;
+//	float magnetometer_z_ga;
+//	float baro_alt_meter;
+//};
 /* --- EKF2 REPLAY Part 2 --- */
-#define LOG_RPL2_MSG 52
-struct log_RPL2_s {
-	uint64_t time_pos_usec;
-	uint64_t time_vel_usec;
-	int32_t lat;
-	int32_t lon;
-	int32_t alt;
-	uint8_t fix_type;
-	uint8_t nsats;
-	float eph;
-	float epv;
-	float sacc;
-	float vel_m_s;
-	float vel_n_m_s;
-	float vel_e_m_s;
-	float vel_d_m_s;
-	bool vel_ned_valid;
-};
+//#define LOG_RPL2_MSG 52
+//struct log_RPL2_s {
+//	uint64_t time_pos_usec;
+//	uint64_t time_vel_usec;
+//	int32_t lat;
+//	int32_t lon;
+//	int32_t alt;
+//	uint8_t fix_type;
+//	uint8_t nsats;
+//	float eph;
+//	float epv;
+//	float sacc;
+//	float vel_m_s;
+//	float vel_n_m_s;
+//	float vel_e_m_s;
+//	float vel_d_m_s;
+//	bool vel_ned_valid;
+//};
 
 /* --- EST6 - ESTIMATOR INNOVATIONS --- */
 #define LOG_EST6_MSG 53
@@ -559,17 +559,17 @@ struct log_EST6_s {
     float s[6];
 };
 
-/* --- EKF2 REPLAY Part 3 --- */
-#define LOG_RPL3_MSG 54
-struct log_RPL3_s {
-	uint64_t time_flow_usec;
-	float flow_integral_x;
-	float flow_integral_y;
-	float gyro_integral_x;
-	float gyro_integral_y;
-	uint32_t flow_time_integral;
-	uint8_t flow_quality;
-};
+///* --- EKF2 REPLAY Part 3 --- */
+//#define LOG_RPL3_MSG 54
+//struct log_RPL3_s {
+//	uint64_t time_flow_usec;
+//	float flow_integral_x;
+//	float flow_integral_y;
+//	float gyro_integral_x;
+//	float gyro_integral_y;
+//	uint32_t flow_time_integral;
+//	uint8_t flow_quality;
+//};
 
 /* --- CAMERA TRIGGER --- */
 #define LOG_CAMT_MSG 55
@@ -579,11 +579,11 @@ struct log_CAMT_s {
 };
 
 /* --- EKF2 REPLAY Part 4 --- */
-#define LOG_RPL4_MSG 56
-struct log_RPL4_s {
-	uint64_t time_rng_usec;
-	float range_to_ground;
-};
+//#define LOG_RPL4_MSG 56
+//struct log_RPL4_s {
+//	uint64_t time_rng_usec;
+//	float range_to_ground;
+//};
 
 /* --- LAND DETECTOR --- */
 #define LOG_LAND_MSG 57
@@ -595,30 +595,30 @@ struct log_LAND_s {
  shares struct with GPS MSG 8*/
 
 /* --- EKF2 REPLAY Part 6 --- */
-#define LOG_RPL6_MSG 59
-struct log_RPL6_s {
-	uint64_t time_airs_usec;
-	float indicated_airspeed_m_s;
-	float true_airspeed_m_s;
-	float true_airspeed_unfiltered_m_s;
-	float air_temperature_celsius;
-	float confidence;
-};
+//#define LOG_RPL6_MSG 59
+//struct log_RPL6_s {
+//	uint64_t time_airs_usec;
+//	float indicated_airspeed_m_s;
+//	float true_airspeed_m_s;
+//	float true_airspeed_unfiltered_m_s;
+//	float air_temperature_celsius;
+//	float confidence;
+//};
 
 /* --- EKF2 REPLAY Part 5 --- */
-#define LOG_RPL5_MSG 60
-struct log_RPL5_s {
-	uint64_t time_ev_usec;
-	float x;
-	float y;
-	float z;
-	float q0;
-	float q1;
-	float q2;
-	float q3;
-	float pos_err;
-	float ang_err;
-};
+//#define LOG_RPL5_MSG 60
+//struct log_RPL5_s {
+//	uint64_t time_ev_usec;
+//	float x;
+//	float y;
+//	float z;
+//	float q0;
+//	float q1;
+//	float q2;
+//	float q3;
+//	float pos_err;
+//	float ang_err;
+//};
 
 /* --- SYSTEM LOAD --- */
 #define LOG_LOAD_MSG 61
@@ -633,6 +633,15 @@ struct log_PXYF_s {
     uint64_t time_pxyf;
     uint8_t valid;
     float s[8];
+};
+
+#define LOG_IASP_MSG 63
+struct log_IASP_s{
+    float roll_body;
+    float pitch_body;
+    float yaw_body;
+    float thrust;
+    uint8_t valid;
 };
 
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
@@ -678,14 +687,14 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT_S(ATTC, ATTC, "ffff",		"Roll,Pitch,Yaw,Thrust"),
 	LOG_FORMAT_S(ATC1, ATTC, "ffff",		"Roll,Pitch,Yaw,Thrust"),
 	LOG_FORMAT(STAT, "BBBB",		"MainState,NavState,ArmS,Failsafe"),
-	LOG_FORMAT(VTOL, "fBBB",		"Arsp,RwMode,TransMode,Failsafe"),
+//	LOG_FORMAT(VTOL, "fBBB",		"Arsp,RwMode,TransMode,Failsafe"),
 	LOG_FORMAT(CTS, "fffffff", "Vx_b,Vy_b,Vz_b,Vinf,P,Q,R"),
 	LOG_FORMAT(RC, "ffffffffffffBBBL",		"C0,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,RSSI,CNT,Lost,Drop"),
 	LOG_FORMAT_S(OUT0, OUT, "ffffffff",		"Out0,Out1,Out2,Out3,Out4,Out5,Out6,Out7"),
 	LOG_FORMAT_S(OUT1, OUT, "ffffffff",		"Out0,Out1,Out2,Out3,Out4,Out5,Out6,Out7"),
 	LOG_FORMAT(AIRS, "fff",			"IndSpeed,TrueSpeed,AirTemp"),
 	LOG_FORMAT(ARSP, "fff",			"RollRateSP,PitchRateSP,YawRateSP"),
-	LOG_FORMAT(FLOW, "BffffffLLHhB",	"ID,RawX,RawY,RX,RY,RZ,Dist,TSpan,DtSonar,FrmCnt,GT,Qlty"),
+//	LOG_FORMAT(FLOW, "BffffffLLHhB",	"ID,RawX,RawY,RX,RY,RZ,Dist,TSpan,DtSonar,FrmCnt,GT,Qlty"),
 	LOG_FORMAT(GPOS, "LLfffffff",		"Lat,Lon,Alt,VelN,VelE,VelD,EPH,EPV,TALT"),
 	LOG_FORMAT(GPSP, "BLLffBfbf",		"NavState,Lat,Lon,Alt,Yaw,Type,LoitR,LoitDir,PitMin"),
 	LOG_FORMAT(ESC, "HBBBHHffiffH",		"count,nESC,Conn,N,Ver,Adr,Volt,Amp,RPM,Temp,SetP,SetPRAW"),
@@ -705,26 +714,27 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(EST6, "ffffff", "FxI,FyI,FxIV,FyIV,HAGLI,HAGLIV"),
 	LOG_FORMAT(PWR, "fffBBBBB",		"Periph5V,Servo5V,RSSI,UsbOk,BrickOk,ServoOk,PeriphOC,HipwrOC"),
 	LOG_FORMAT(MOCP, "fffffff",		"QuatW,QuatX,QuatY,QuatZ,X,Y,Z"),
-	LOG_FORMAT(VISN, "ffffffffff",		"X,Y,Z,VX,VY,VZ,QuatW,QuatX,QuatY,QuatZ"),
+//	LOG_FORMAT(VISN, "ffffffffff",		"X,Y,Z,VX,VY,VZ,QuatW,QuatX,QuatY,QuatZ"),
 	LOG_FORMAT(GS0A, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
 	LOG_FORMAT(GS0B, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
 	LOG_FORMAT(GS1A, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
 	LOG_FORMAT(GS1B, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
 	LOG_FORMAT(TECS, "ffffffffffffffB",	"ASP,AF,FSP,F,AsSP,AsF,AsDSP,AsD,EE,ERE,EDE,EDRE,PtchI,ThrI,M"),
 	LOG_FORMAT(WIND, "ffff",	"X,Y,CovX,CovY"),
-	LOG_FORMAT(ENCD, "qfqf",	"cnt0,vel0,cnt1,vel1"),
+//	LOG_FORMAT(ENCD, "qfqf",	"cnt0,vel0,cnt1,vel1"),
 	LOG_FORMAT(TSYN, "Q", 		"TimeOffset"),
 	LOG_FORMAT(MACS, "fff", "RRint,PRint,YRint"),
 	LOG_FORMAT(CAMT, "QI", "timestamp,seq"),
-	LOG_FORMAT(RPL1, "QQQQQffffffffff", "t,gIdt,aIdt,Tm,Tb,gIx,gIy,gIz,aIx,aIy,aIz,magX,magY,magZ,b_alt"),
-	LOG_FORMAT(RPL2, "QQLLiMMfffffffM", "Tpos,Tvel,lat,lon,alt,fix,nsats,eph,epv,sacc,v,vN,vE,vD,v_val"),
-	LOG_FORMAT(RPL3, "QffffIB", "Tflow,fx,fy,gx,gy,delT,qual"),
-	LOG_FORMAT(RPL4, "Qf", "Trng,rng"),
-	LOG_FORMAT(RPL5, "Qfffffffff", "Tev,x,y,z,q0,q1,q2,q3,posErr,angErr"),
-	LOG_FORMAT(RPL6, "Qfffff", "Tasp,inAsp,trAsp,ufAsp,tpAsp,confAsp"),
+//	LOG_FORMAT(RPL1, "QQQQQffffffffff", "t,gIdt,aIdt,Tm,Tb,gIx,gIy,gIz,aIx,aIy,aIz,magX,magY,magZ,b_alt"),
+//	LOG_FORMAT(RPL2, "QQLLiMMfffffffM", "Tpos,Tvel,lat,lon,alt,fix,nsats,eph,epv,sacc,v,vN,vE,vD,v_val"),
+//	LOG_FORMAT(RPL3, "QffffIB", "Tflow,fx,fy,gx,gy,delT,qual"),
+//	LOG_FORMAT(RPL4, "Qf", "Trng,rng"),
+//	LOG_FORMAT(RPL5, "Qfffffffff", "Tev,x,y,z,q0,q1,q2,q3,posErr,angErr"),
+//	LOG_FORMAT(RPL6, "Qfffff", "Tasp,inAsp,trAsp,ufAsp,tpAsp,confAsp"),
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
     LOG_FORMAT(PXYF,"QMffffffff","t,val,s0,s1,s2,s3,s4,s5,s6,s7"), //ADDED by Xie
+    LOG_FORMAT(IASP,"ffffM","Roll,Pitch,Yaw,Thrust,val"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),

@@ -119,6 +119,7 @@ set(msg_file_names
 	wind_estimate.msg
 	pixy.msg
 	image_features.msg
+	vehicle_image_attitude_setpoint.msg
 	)
 
 # Get absolute paths

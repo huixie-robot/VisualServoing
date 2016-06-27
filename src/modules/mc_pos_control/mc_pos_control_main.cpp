@@ -1217,6 +1217,8 @@ MulticopterPositionControl::task_main()
 
 	hrt_abstime t_prev = 0;
 
+
+
 	math::Vector<3> thrust_int;
 	thrust_int.zero();
 
@@ -1955,7 +1957,7 @@ MulticopterPositionControl::task_main()
 		/* generate attitude setpoint from manual controls */
 		if (_control_mode.flag_control_manual_enabled && _control_mode.flag_control_attitude_enabled) {
 
-			/* reset yaw setpoint to current position if needed */
+            /* reset yaw setpoint to current position if needed */
 			if (reset_yaw_sp) {
 				reset_yaw_sp = false;
 				_att_sp.yaw_body = _yaw;
@@ -2038,13 +2040,13 @@ MulticopterPositionControl::task_main()
 
 			memcpy(&_att_sp.R_body[0], R_sp.data, sizeof(_att_sp.R_body));
 
-			/* reset the acceleration set point for all non-attitude flight modes */
-			if (!(_control_mode.flag_control_offboard_enabled &&
-					!(_control_mode.flag_control_position_enabled ||
-					  _control_mode.flag_control_velocity_enabled))) {
+            /* reset the acceleration set point for all non-attitude flight modes */
+            if (!(_control_mode.flag_control_offboard_enabled &&
+                    !(_control_mode.flag_control_position_enabled ||
+                      _control_mode.flag_control_velocity_enabled))) {
 
-				_thrust_sp_prev = R_sp * math::Vector<3>(0, 0, -_att_sp.thrust);
-			}
+                _thrust_sp_prev = R_sp * math::Vector<3>(0, 0, -_att_sp.thrust);
+            }
 
 			/* copy quaternion setpoint to attitude setpoint topic */
 			math::Quaternion q_sp;
@@ -2083,9 +2085,9 @@ MulticopterPositionControl::task_main()
 				     && !_control_mode.flag_control_climb_rate_enabled;
 	}
 
-	mavlink_log_info(&_mavlink_log_pub, "[mpc] stopped");
+    mavlink_log_info(&_mavlink_log_pub, "[mpc] stopped");
 
-	_control_task = -1;
+    _control_task = -1;
 }
 
 int

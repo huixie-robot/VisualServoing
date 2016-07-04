@@ -141,9 +141,14 @@ private:
     /* publication topics */
     orb_advert_t _mavlink_log_pub;
     orb_advert_t _att_sp_pub;
+    orb_advert_t _local_pos_sp_pub;
+    orb_advert_t _img_att_sp_pub;
+
 
     /*Publish structure*/
     struct vehicle_attitude_setpoint_s _att_sp;
+    struct vehicle_local_position_setpoint_s _local_pos_sp;
+
 
     control::BlockParamFloat _manual_thr_min;
     control::BlockParamFloat _manual_thr_max;
@@ -151,6 +156,10 @@ private:
     control::BlockDerivative _vel_x_deriv;
     control::BlockDerivative _vel_y_deriv;
     control::BlockDerivative _vel_z_deriv;
+
+    control::BlockDerivative _pos_x_deriv;
+    control::BlockDerivative _pos_y_deriv;
+    control::BlockDerivative _pos_z_deriv;
 
     bool _reset_pos_sp;
 
@@ -163,6 +172,7 @@ private:
     math::Vector<3> _vel_sp_prev;
     math::Vector<3> _vel_ff;
     math::Vector<3> _vel_err_d;
+    math::Vector<3> _pos_err_d;
     math::Vector<3> _thrust_int;
 
 
@@ -171,6 +181,7 @@ private:
     void cal_vel_sp(float dt,bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
     void automatic(float dt,bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
     void automatic_2(float dt, bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
+    void automatic_3(float dt, bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
 
     static float throttle_curve(float ctl, float ctr);
     void task_main();
@@ -210,14 +221,21 @@ ViconControl::ViconControl():
     /*publication*/
     _mavlink_log_pub(nullptr),
     _att_sp_pub(nullptr),
+    _local_pos_sp_pub(nullptr),
+    _img_att_sp_pub(nullptr),
     /*Publish structure*/
     _att_sp{},
+    _local_pos_sp{},
 
     _manual_thr_min(this, "MANTHR_MIN"),
     _manual_thr_max(this, "MANTHR_MAX"),
     _vel_x_deriv(this, "VELD"),
     _vel_y_deriv(this, "VELD"),
     _vel_z_deriv(this, "VELD"),
+
+    _pos_x_deriv(this, "VELD"),
+    _pos_y_deriv(this, "VELD"),
+    _pos_z_deriv(this, "VELD"),
 
     _reset_pos_sp(true),
 
@@ -243,6 +261,7 @@ ViconControl::ViconControl():
     _vel_sp_prev.zero();
     _vel_ff.zero();
     _vel_err_d.zero();
+    _pos_err_d.zero();
     _thrust_int.zero();
 
 
@@ -317,7 +336,8 @@ float ViconControl::throttle_curve(float ctl, float ctr)
         return 2 * ctl * ctr;
 
     } else {
-        return ctr + 2 * (ctl - 0.5f) * (1.0f - ctr);
+//        return ctr + 2.0 * (ctl - 0.5f) * (1.0f - ctr);
+        return ctr + 1.6f * (ctl - 0.5f) * (1.0f - ctr);
     }
 }
 
@@ -469,6 +489,7 @@ void ViconControl::cal_vel_sp(float dt,bool &reset_int_xy, bool &reset_int_z, bo
     _vel_sp(0) = (_pos_sp(0) - _pos(0)) * _params.pos_p(0);
     _vel_sp(1) = (_pos_sp(1) - _pos(1)) * _params.pos_p(1);
     _vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
+
     /* make sure velocity setpoint is saturated in xy*/
     float vel_norm_xy = sqrtf(_vel_sp(0) * _vel_sp(0) +
                   _vel_sp(1) * _vel_sp(1));
@@ -477,6 +498,7 @@ void ViconControl::cal_vel_sp(float dt,bool &reset_int_xy, bool &reset_int_z, bo
         _vel_sp(0) = _vel_sp(0) * _params.vel_max(0) / vel_norm_xy;
         _vel_sp(1) = _vel_sp(1) * _params.vel_max(1) / vel_norm_xy;
     }
+
     /* make sure velocity setpoint is saturated in z*/
     if (_vel_sp(2) < -1.0f * _params.vel_max_up){
         _vel_sp(2) = -1.0f * _params.vel_max_up;
@@ -507,12 +529,15 @@ void ViconControl::cal_vel_sp(float dt,bool &reset_int_xy, bool &reset_int_z, bo
         _vel_sp(2) = acc_v * 2 * _params.acc_hor_max * dt + _vel_sp_prev(2);
     }
 
+    _vel_sp_prev = _vel_sp;
+
     // reset integrals
     if (reset_int_z) {
         reset_int_z = false;
         float i = _params.thr_min;
 
         if (reset_int_z_manual) {
+            warnx("reset_int_z_manual");
             i = _params.thr_hover;
 
             if (i < _params.thr_min) {
@@ -534,6 +559,7 @@ void ViconControl::cal_vel_sp(float dt,bool &reset_int_xy, bool &reset_int_z, bo
 
 void ViconControl::automatic(float dt,bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual)
 {
+
     cal_vel_sp(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
     /* velocity error */
     math::Vector<3> vel_err = _vel_sp - _vel;
@@ -713,6 +739,7 @@ void ViconControl::automatic(float dt,bool &reset_int_xy, bool &reset_int_z, boo
 
 void ViconControl::automatic_2(float dt, bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual){
 
+//    reset_int_xy = true;
     cal_vel_sp(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
 
     /* velocity error */
@@ -720,6 +747,7 @@ void ViconControl::automatic_2(float dt, bool &reset_int_xy, bool &reset_int_z, 
     math::Vector<3> force_nav;
     math::Vector<3> force_body;
     force_nav = vel_err.emult(_params.vel_p) + _vel_err_d.emult(_params.vel_d) + _thrust_int;
+
     float roll_sp, pitch_sp, thrust_sp;
 
     force_body(0) = cosf(-_yaw)*force_nav(0) - sinf(-_yaw)*force_nav(1);
@@ -797,6 +825,99 @@ void ViconControl::automatic_2(float dt, bool &reset_int_xy, bool &reset_int_z, 
     _att_sp.thrust = thrust_sp;
 }
 
+
+void ViconControl::automatic_3(float dt,bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual){
+
+    /* Here only reset_int_xy, reset_int_z and reset_int_z manual is used */
+    cal_vel_sp(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
+
+    math::Vector<3> pos_err = _pos_sp - _pos;
+    math::Vector<3> force_nav;
+    math::Vector<3> force_body;
+
+
+    force_nav = pos_err.emult(_params.vel_p) + _pos_err_d.emult(_params.vel_d)+_thrust_int;
+//    force_nav = pos_err.emult(_params.vel_p) - _vel.emult(_params.vel_d)+_thrust_int;
+
+    float roll_sp, pitch_sp, thrust_sp;
+
+    force_body(0) = cosf(-_yaw)*force_nav(0) - sinf(-_yaw)*force_nav(1);
+    force_body(1) = sinf(-_yaw)*force_nav(0) + cosf(-_yaw)*force_nav(1);
+    force_body(2) = force_nav(2);
+    /* limit thrust vector and check for saturation */
+
+
+    bool saturation_x = false;
+    bool saturation_y = false;
+    bool saturation_z = false;
+
+    float thr_min = _params.thr_min;
+    float tilt_max = _params.tilt_max_air;
+    float thr_max = _params.thr_max;
+
+    pitch_sp = - force_body(0);
+    roll_sp = force_body(1);
+    thrust_sp = - force_body(2);
+
+//    warnx("CurPos: %.4f PosSP %.4f, Thrust SP: %.4f",(double)_pos(2),(double) _pos_sp(2),(double) thrust_sp);
+    if(pitch_sp>tilt_max)
+    {
+        pitch_sp = tilt_max;
+        saturation_x = true;
+    }
+    else if(pitch_sp < - tilt_max)
+    {
+        pitch_sp = - tilt_max;
+        saturation_x = true;
+    }
+
+    if(roll_sp>tilt_max)
+    {
+        roll_sp = tilt_max;
+        saturation_y = true;
+    }
+    else if(roll_sp < - tilt_max)
+    {
+        roll_sp = - tilt_max;
+        saturation_y = true;
+    }
+
+    if(thrust_sp<thr_min)
+    {
+        thrust_sp = thr_min;
+        saturation_z = true;
+    }
+    if(thrust_sp>thr_max)
+    {
+        thrust_sp = thr_max;
+        saturation_z =  true;
+    }
+
+    /* update integrals */
+    if (!saturation_x) {
+        _thrust_int(0) += pos_err(0) * _params.vel_i(0) * dt;
+    }
+
+    /* update integrals */
+    if (!saturation_y) {
+        _thrust_int(0) += pos_err(0) * _params.vel_i(0) * dt;
+    }
+
+    if (!saturation_z) {
+        _thrust_int(2) += pos_err(2) * _params.vel_i(2) * dt;
+
+        /* protection against flipping on ground when landing */
+        if (_thrust_int(2) > 0.0f) {
+            _thrust_int(2) = 0.0f;
+        }
+    }
+    _att_sp.roll_body = roll_sp;
+    _att_sp.pitch_body = pitch_sp;
+    _att_sp.yaw_body = _wrap_pi(_att_sp.yaw_body);
+    _att_sp.thrust = thrust_sp;
+}
+
+
 void ViconControl::manual(bool &reset_yaw_sp, float dt){
     /* reset yaw setpoint to current position if needed */
     if (reset_yaw_sp) {
@@ -806,22 +927,22 @@ void ViconControl::manual(bool &reset_yaw_sp, float dt){
     else if (!_vehicle_land_detected.landed &&_manual.z > 0.1f)
     {
 
-        /* we want to know the real constraint, and global overrides manual */
-        const float yaw_rate_max = (_params.man_yaw_max < _params.global_yaw_max) ? _params.man_yaw_max :
-                       _params.global_yaw_max;
-        const float yaw_offset_max = yaw_rate_max / _params.mc_att_yaw_p;
+//        /* we want to know the real constraint, and global overrides manual */
+//        const float yaw_rate_max = (_params.man_yaw_max < _params.global_yaw_max) ? _params.man_yaw_max :
+//                       _params.global_yaw_max;
+//        const float yaw_offset_max = yaw_rate_max / _params.mc_att_yaw_p;
 
-        _att_sp.yaw_sp_move_rate = _manual.r * yaw_rate_max;
-        float yaw_target = _wrap_pi(_att_sp.yaw_body + _att_sp.yaw_sp_move_rate * dt);
-        float yaw_offs = _wrap_pi(yaw_target - _yaw);
+//        _att_sp.yaw_sp_move_rate = _manual.r * yaw_rate_max;
+//        float yaw_target = _wrap_pi(_att_sp.yaw_body + _att_sp.yaw_sp_move_rate * dt);
+//        float yaw_offs = _wrap_pi(yaw_target - _yaw);
 
-        // If the yaw offset became too big for the system to track stop
-        // shifting it
+//        // If the yaw offset became too big for the system to track stop
+//        // shifting it
 
-        // XXX this needs inspection - probably requires a clamp, not an if
-        if (fabsf(yaw_offs) < yaw_offset_max) {
-            _att_sp.yaw_body = yaw_target;
-        }
+//        // XXX this needs inspection - probably requires a clamp, not an if
+//        if (fabsf(yaw_offs) < yaw_offset_max) {
+////            _att_sp.yaw_body = yaw_target;
+//        }
     }
 
     _att_sp.roll_body = _manual.y * _params.man_roll_max;
@@ -896,10 +1017,18 @@ void ViconControl::task_main(){
 
     bool was_armed = false;
 
-    hrt_abstime t_prev = 0;
+    hrt_abstime t_prev = hrt_absolute_time();
     px4_pollfd_struct_t fds[1];
     fds[0].fd = _local_pos_sub;
     fds[0].events = POLLIN;
+
+    uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
+
+
+    int count_traj=1;
+    hrt_abstime time = hrt_absolute_time();
+    hrt_abstime print_time = time + 5000000;
+
     while (!_task_should_exit)
     {
         /* wait for up to 500ms for data */
@@ -922,6 +1051,7 @@ void ViconControl::task_main(){
         float dt = t_prev != 0 ? (t - t_prev) * 0.000001f : 0.0f;
         t_prev = t;
         setDt(dt);
+
 
         /* Update velocity derivative,
          * independent of the current flight mode
@@ -947,59 +1077,122 @@ void ViconControl::task_main(){
             _vel_err_d(0) = _vel_x_deriv.update(-_vel(0));
             _vel_err_d(1) = _vel_y_deriv.update(-_vel(1));
             _vel_err_d(2) = _vel_z_deriv.update(-_vel(2));
+
+            _pos_err_d(0) = _pos_x_deriv.update(-_pos(0));
+            _pos_err_d(1) = _pos_y_deriv.update(-_pos(1));
+            _pos_err_d(2) = _pos_z_deriv.update(-_pos(2));
         }
 
         if (_control_mode.flag_armed && !was_armed) {
-            reset_yaw_sp = true;
             reset_int_z = true;
             reset_int_xy = true;
             reset_yaw_sp = true;
             _pos_sp(0) = _pos(0);
             _pos_sp(1) = _pos(1);
             _pos_sp(2) = _pos(2) - 1.0f;
-            _att_sp.yaw_body = 0;
         }
         //Update previous arming state
         was_armed = _control_mode.flag_armed;
         _att_sp.disable_mc_yaw_control = false;
 
-
         if((_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)||
                 (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL)||
-                (_vehicle_status.nav_state = vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER))
+                (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER))
         {
-//            automatic(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
-            automatic_2(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
+//           automatic(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
+//            automatic_2(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
+            automatic_3(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
+
+//            reset_int_z_manual = _control_mode.flag_armed &&
+//                    (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_MANUAL
+//                     ||_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL);
+
+            _img_att_sp.roll_body = _att_sp.roll_body;
+            _img_att_sp.pitch_body = _att_sp.pitch_body;
+            _img_att_sp.yaw_body = _att_sp.yaw_body;
+            _img_att_sp.thrust = _att_sp.thrust;
+            /* publish vehicle_image_attitude_setpoint  */
+            if (_img_att_sp_pub != nullptr) {
+                orb_publish(ORB_ID(vehicle_image_attitude_setpoint), _img_att_sp_pub, &_img_att_sp);
+
+            } else {
+                _img_att_sp_pub = orb_advertise(ORB_ID(vehicle_image_attitude_setpoint), &_img_att_sp);
+            }
+
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL)
             {
+                if(prev_nav_state!=vehicle_status_s::NAVIGATION_STATE_ALTCTL)
+                {
+                    _att_sp.yaw_body = _yaw;
+                    _pos_sp(0) = _pos(0);
+                    _pos_sp(1) = _pos(1);
+
+                }
                 float thr_val = throttle_curve(_manual.z, _params.thr_hover);
                 _att_sp.thrust = math::min(thr_val, _manual_thr_max.get());
-            }
 
-            if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
-            {
-                uint8_t enable = (uint8_t)_params.ibvs_enable;
-                bool roll_enabled = (enable & (uint8_t)1);
-                bool pitch_enabled = (enable & (uint8_t)2);
-                bool yaw_enabled = (enable & (uint8_t)4);
-                bool thrust_enabled = (enable & (uint8_t)8);
-
-                bool img_roll_valid  = (_img_att_sp.valid &((uint8_t)1));
-                bool img_pitch_valid = (_img_att_sp.valid &((uint8_t)2));
-                bool img_yaw_valid = (_img_att_sp.valid &((uint8_t)4));
-                bool img_thrust_valid = (_img_att_sp.valid &((uint8_t)8));
-
-                if(roll_enabled && img_roll_valid)
-                {
-                    _att_sp.roll_body =_img_att_sp.roll_body;
+                if (!_vehicle_land_detected.landed) {
+                    _att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get());
                 }
-                if(pitch_enabled && img_pitch_valid )
-                    _att_sp.pitch_body = _img_att_sp.pitch_body;
-                if(yaw_enabled && img_yaw_valid)
-                    _att_sp.yaw_body = _img_att_sp.yaw_body;
-                if(thrust_enabled && img_thrust_valid)
-                    _att_sp.thrust = _img_att_sp.thrust;
+
+
             }
+
+            if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)
+            {
+                if(prev_nav_state !=vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)
+                {
+                    _pos_sp(2) = _pos(2);
+                    reset_int_z = true;
+                    reset_int_xy = true;
+                    if(_control_mode.flag_armed)
+                        reset_int_z_manual = true;
+                }
+
+                if(time> print_time)
+                {
+                    print_time = time + 5000000;
+                    if(count_traj%2==0)
+                    {
+                        _pos_sp(0) += 1.0f;
+                        _pos_sp(1) += 1.0f ;
+                    }
+                    else if(count_traj%2==1)
+                    {
+                        _pos_sp(0) -= 1.0f;
+                        _pos_sp(1) -= 1.0f;
+                    }
+                    count_traj ++;
+//                    warnx("thrust_given: %.5f", (double)_att_sp.thrust);
+                }
+                time = hrt_absolute_time();
+            }
+
+//            if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
+//            {
+//                uint8_t enable = (uint8_t)_params.ibvs_enable;
+//                bool roll_enabled = (enable & (uint8_t)1);
+//                bool pitch_enabled = (enable & (uint8_t)2);
+//                bool yaw_enabled = (enable & (uint8_t)4);
+//                bool thrust_enabled = (enable & (uint8_t)8);
+
+//                bool img_roll_valid  = (_img_att_sp.valid &((uint8_t)1));
+//                bool img_pitch_valid = (_img_att_sp.valid &((uint8_t)2));
+//                bool img_yaw_valid = (_img_att_sp.valid &((uint8_t)4));
+//                bool img_thrust_valid = (_img_att_sp.valid &((uint8_t)8));
+
+//                if(roll_enabled && img_roll_valid)
+//                {
+//                    _att_sp.roll_body =_img_att_sp.roll_body;
+//                }
+//                if(pitch_enabled && img_pitch_valid )
+//                    _att_sp.pitch_body = _img_att_sp.pitch_body;
+//                if(yaw_enabled && img_yaw_valid)
+//                    _att_sp.yaw_body = _img_att_sp.yaw_body;
+//                if(thrust_enabled && img_thrust_valid)
+//                    _att_sp.thrust = _img_att_sp.thrust;
+//            }
+
             _att_sp.timestamp = hrt_absolute_time();
             math::Matrix<3,3> R_sp;
             R_sp.from_euler(_att_sp.roll_body, _att_sp.pitch_body, _att_sp.yaw_body);
@@ -1010,7 +1203,27 @@ void ViconControl::task_main(){
             math::Quaternion q_sp;
             q_sp.from_dcm(R_sp);
             memcpy(&_att_sp.q_d[0], &q_sp.data[0], sizeof(_att_sp.q_d));
+
+
+            /* fill local position, velocity and thrust setpoint */
+            _local_pos_sp.timestamp = hrt_absolute_time();
+            _local_pos_sp.x = _pos_sp(0);
+            _local_pos_sp.y = _pos_sp(1);
+            _local_pos_sp.z = _pos_sp(2);
+            _local_pos_sp.yaw = _att_sp.yaw_body;
+            _local_pos_sp.vx = _vel_sp(0);
+            _local_pos_sp.vy = _vel_sp(1);
+            _local_pos_sp.vz = _vel_sp(2);
+
+            /* publish local position setpoint */
+            if (_local_pos_sp_pub != nullptr) {
+                orb_publish(ORB_ID(vehicle_local_position_setpoint), _local_pos_sp_pub, &_local_pos_sp);
+
+            } else {
+                _local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &_local_pos_sp);
+            }
         }
+
         /* generate attitude setpoint from manual controls */
         if (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_MANUAL) {
             manual(reset_yaw_sp,dt);
@@ -1020,35 +1233,6 @@ void ViconControl::task_main(){
         }
 
 
-//        if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
-//        {
-//            warnx("in IBVS mode");
-
-//            //TODO Figure how to switch to IBVS
-//            _att_sp.disable_mc_yaw_control = false;
-//            _att_sp.timestamp = hrt_absolute_time();
-
-
-//            _att_sp.roll_body = 0.0f;
-//            _att_sp.pitch_body = 0.0f;
-//            _att_sp.yaw_body = 0.0f;
-
-//            const float yaw_rate_max = (_params.man_yaw_max < _params.global_yaw_max) ? _params.man_yaw_max :
-//                           _params.global_yaw_max;
-//            _att_sp.yaw_sp_move_rate = 0.1f * yaw_rate_max;
-//            _att_sp.thrust = throttle_curve(_manual.z, _params.thr_hover);
-
-//            math::Matrix<3, 3> R_sp;
-
-//            R_sp.from_euler(_att_sp.roll_body, _att_sp.yaw_body, _att_sp.yaw_body);
-
-//            memcpy(&_att_sp.R_body[0], R_sp.data, sizeof(_att_sp.R_body));
-
-//            /* copy quaternion setpoint to attitude setpoint topic */
-//            math::Quaternion q_sp;
-//            q_sp.from_dcm(R_sp);
-//            memcpy(&_att_sp.q_d[0], &q_sp.data[0], sizeof(_att_sp.q_d));
-//        }
 
         /* update previous velocity for velocity controller D part */
         _vel_prev = _vel;
@@ -1060,9 +1244,7 @@ void ViconControl::task_main(){
             _att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint),&_att_sp);
         }
 
-        reset_int_z_manual = _control_mode.flag_armed &&
-                (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_MANUAL
-                 ||_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL);
+        prev_nav_state = _vehicle_status.nav_state;
     }
 
     _control_task = -1;

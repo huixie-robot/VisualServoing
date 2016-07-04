@@ -969,11 +969,14 @@ MulticopterAttitudeControl::task_main()
 					if (_actuators_0_pub != nullptr) {
 
 						orb_publish(_actuators_id, _actuators_0_pub, &_actuators);
+//                        warnx("_actuators: %.4f, %.4f, %.4f, %.4f", (double)_actuators.control[0],
+//                                (double)_actuators.control[1], (double)_actuators.control[2], (double)_actuators.control[3]);
 						perf_end(_controller_latency_perf);
 
 					} else if (_actuators_id) {
 						_actuators_0_pub = orb_advertise(_actuators_id, &_actuators);
 					}
+
 
 				}
 

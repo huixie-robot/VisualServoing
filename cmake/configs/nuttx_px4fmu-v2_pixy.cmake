@@ -94,7 +94,7 @@ set(config_module_list
 #	modules/fw_pos_control_l1
 #	modules/fw_att_control
 	modules/mc_att_control
-	modules/mc_pos_control
+#	modules/mc_pos_control
 	modules/mc_vicon_pos_control
 	modules/vtol_att_control
 
@@ -118,7 +118,7 @@ set(config_module_list
 	#
 	modules/pixy
 	modules/pixy_fe
-
+	modules/mc_ibvs_hg
 	#
 	# Libraries
 	#

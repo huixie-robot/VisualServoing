@@ -1168,30 +1168,30 @@ void ViconControl::task_main(){
                 time = hrt_absolute_time();
             }
 
-//            if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
-//            {
-//                uint8_t enable = (uint8_t)_params.ibvs_enable;
-//                bool roll_enabled = (enable & (uint8_t)1);
-//                bool pitch_enabled = (enable & (uint8_t)2);
-//                bool yaw_enabled = (enable & (uint8_t)4);
-//                bool thrust_enabled = (enable & (uint8_t)8);
+            if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
+            {
+                uint8_t enable = (uint8_t)_params.ibvs_enable;
+                bool roll_enabled = (enable & (uint8_t)1);
+                bool pitch_enabled = (enable & (uint8_t)2);
+                bool yaw_enabled = (enable & (uint8_t)4);
+                bool thrust_enabled = (enable & (uint8_t)8);
 
-//                bool img_roll_valid  = (_img_att_sp.valid &((uint8_t)1));
-//                bool img_pitch_valid = (_img_att_sp.valid &((uint8_t)2));
-//                bool img_yaw_valid = (_img_att_sp.valid &((uint8_t)4));
-//                bool img_thrust_valid = (_img_att_sp.valid &((uint8_t)8));
+                bool img_roll_valid  = (_img_att_sp.valid &((uint8_t)1));
+                bool img_pitch_valid = (_img_att_sp.valid &((uint8_t)2));
+                bool img_yaw_valid = (_img_att_sp.valid &((uint8_t)4));
+                bool img_thrust_valid = (_img_att_sp.valid &((uint8_t)8));
 
-//                if(roll_enabled && img_roll_valid)
-//                {
-//                    _att_sp.roll_body =_img_att_sp.roll_body;
-//                }
-//                if(pitch_enabled && img_pitch_valid )
-//                    _att_sp.pitch_body = _img_att_sp.pitch_body;
-//                if(yaw_enabled && img_yaw_valid)
-//                    _att_sp.yaw_body = _img_att_sp.yaw_body;
-//                if(thrust_enabled && img_thrust_valid)
-//                    _att_sp.thrust = _img_att_sp.thrust;
-//            }
+                if(roll_enabled && img_roll_valid)
+                {
+                    _att_sp.roll_body =_img_att_sp.roll_body;
+                }
+                if(pitch_enabled && img_pitch_valid )
+                    _att_sp.pitch_body = _img_att_sp.pitch_body;
+                if(yaw_enabled && img_yaw_valid)
+                    _att_sp.yaw_body = _img_att_sp.yaw_body;
+                if(thrust_enabled && img_thrust_valid)
+                    _att_sp.thrust = _img_att_sp.thrust;
+            }
 
             _att_sp.timestamp = hrt_absolute_time();
             math::Matrix<3,3> R_sp;

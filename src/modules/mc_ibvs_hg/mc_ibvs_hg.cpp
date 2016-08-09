@@ -57,6 +57,7 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/image_features.h>
 #include <uORB/topics/vehicle_image_attitude_setpoint.h>
+#include <uORB/topics/ibvs_state.h>
 #include <systemlib/scheduling_priorities.h>
 #include <systemlib/perf_counter.h>
 
@@ -124,7 +125,7 @@ private:
         param_t k_l2;
 
         param_t k_psi;
-    }_params;
+    }_params_handles;
 
     struct{
         float l_h;
@@ -143,7 +144,7 @@ private:
         float k_l2;
 
         float k_psi;
-    }_params_handles;
+    }_params;
 
     /**
      * Update our local parameter cache.
@@ -152,8 +153,10 @@ private:
 
     /* publication topics */
     orb_advert_t    _att_sp_ibvs_pub_fd;
+    orb_advert_t    _ibvs_state_pub_fd;
     /*Publish structure*/
     struct vehicle_image_attitude_setpoint_s _att_sp_ibvs;
+    struct ibvs_state_s _ibvs_state;
 
     /**
      * Shim for calling task_main from task_create.
@@ -233,7 +236,9 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
     _ctrl_state{},
     // publication
     _att_sp_ibvs_pub_fd(nullptr),
+    _ibvs_state_pub_fd{nullptr},
     _att_sp_ibvs{},
+    _ibvs_state{},
     // state variables
     e_sh(0.0f),
     tilde_e_sh(0.0f),
@@ -307,6 +312,7 @@ MulticopterOPFIBVS::parameters_update(bool force)
 {
     bool updated;
     struct parameter_update_s param_upd;
+
     orb_check(_parameter_update_sub_fd, &updated);
 
     if(updated)
@@ -341,7 +347,7 @@ MulticopterOPFIBVS::start()
 
     //TODO check the priority
     /* start the task */
-    _ibvs_task = px4_task_spawn_cmd("mc_ibvs",
+    _ibvs_task = px4_task_spawn_cmd("mc_ibvs_hg",
                        SCHED_DEFAULT,
                        SCHED_PRIORITY_POSITION_CONTROL,
                        1024,
@@ -373,7 +379,10 @@ MulticopterOPFIBVS::poll_subscriptions()
 //    }
 //    update the image feature
     orb_check(_img_feature_sub_fd, &updated);
-    if (updated) orb_copy(ORB_ID(image_features), _img_feature_sub_fd, &_img_feature);
+    if (updated)
+    {
+        orb_copy(ORB_ID(image_features), _img_feature_sub_fd, &_img_feature);
+    }
 //    update vehicle's status
     orb_check(_vehicle_status_sub_fd, &updated);
     if(updated){
@@ -381,12 +390,13 @@ MulticopterOPFIBVS::poll_subscriptions()
     }
 
 //    update vehicle control state
-    orb_check(_vehicle_status_sub_fd,&updated);
+    orb_check(_ctrl_state_sub_fd,&updated);
     if(updated){
         orb_copy(ORB_ID(control_state),_ctrl_state_sub_fd,&_ctrl_state);
         math::Quaternion q_att(_ctrl_state.q[0], _ctrl_state.q[1], _ctrl_state.q[2], _ctrl_state.q[3]);
-        _R = q_att.to_dcm();
-        euler_angles = _R.to_euler();
+//        _R = q_att.to_dcm();
+        euler_angles = q_att.to_euler();
+//        warnx("R P Y: %.4f, %.4f, %.4f", (double)euler_angles(0),(double)euler_angles(1),(double)euler_angles(2));
     }
 }
 
@@ -409,8 +419,12 @@ MulticopterOPFIBVS::task_main()
     fds[0].events = POLLIN;
 
     hrt_abstime t_prev = hrt_absolute_time();
+//    hrt_abstime t_print = 0;
+
     bool ibvs_on_prev = false;
-    bool ibvs_int_reset = true;
+    bool ibvs_int_reset_roll = true;
+    bool ibvs_int_reset_pitch = true;
+    bool ibvs_int_reset_thrust = true;
 
 
     uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
@@ -426,6 +440,7 @@ MulticopterOPFIBVS::task_main()
 
         if(poll_ret==0)
         {
+            warnx("poll no return");
             _att_sp_ibvs.valid = 0;
             if(_att_sp_ibvs_pub_fd != nullptr)
             {
@@ -433,6 +448,14 @@ MulticopterOPFIBVS::task_main()
             }
             else{
                 orb_advertise(ORB_ID(vehicle_image_attitude_setpoint),&_att_sp_ibvs);
+            }
+            _ibvs_state.valid = 0;
+            if(_ibvs_state_pub_fd != nullptr)
+            {
+                orb_publish(ORB_ID(ibvs_state),_ibvs_state_pub_fd, &_ibvs_state);
+            }
+            else{
+                orb_advertise(ORB_ID(ibvs_state),&_ibvs_state);
             }
             continue;
         }
@@ -445,24 +468,42 @@ MulticopterOPFIBVS::task_main()
         t_prev = t;
 
         bool ibvs_on = (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER);
+
         if(ibvs_on == true && ibvs_on_prev == false)
-            ibvs_int_reset = true;
+        {
+            ibvs_int_reset_roll = true;
+            ibvs_int_reset_pitch = true;
+            ibvs_int_reset_thrust = true;
+        }
+
+        if(ibvs_on != true)
+        {
+            ibvs_int_reset_roll = true;
+            ibvs_int_reset_pitch = true;
+            ibvs_int_reset_thrust = true;
+        }
+
+
         ibvs_on_prev = ibvs_on;
 
+        _att_sp_ibvs.valid = 0;
+        _ibvs_state.valid = 0;
 
         /* for x direction motion and pitch */
         if(isValid(&_img_feature,0))
         {
+//            warnx("S1 is valid");
             e_sl1 = _img_feature.s[0];
             tilde_e_sl1 = e_sl1 - hat_e_sl1;
             hat_e_sl1 += (-hat_v_sl1 + _params.l_l1*tilde_e_sl1)*dt;
             hat_v_sl1 += -_params.l_l1*_params.l_ld1*tilde_e_sl1*dt;
 
             float eta_e1_hat;
-            if(ibvs_int_reset)
+            if(ibvs_int_reset_pitch)
             {
                 eta_e1_hat = 0.0f;
                 eta_e1_update = 0.0f;
+                ibvs_int_reset_pitch = false;
             }
             else
             {
@@ -470,8 +511,14 @@ MulticopterOPFIBVS::task_main()
                 eta_e1_hat = -_params.gamma_l1*(e_sl1+tilde_e_sl1) -  _params.gamma_l1*_params.l_ld1*eta_e1_update;
             }
 
-            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_e_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.l_ld1*e_sl1) + eta_e1_hat;
+            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.l_ld1*e_sl1) + eta_e1_hat;
+
+            _ibvs_state.hat_e_sl1 = hat_e_sl1;
+            _ibvs_state.hat_v_sl1 = hat_v_sl1;
+            _ibvs_state.eta_e1_hat = eta_e1_hat;
+
             _att_sp_ibvs.valid += ((uint8_t)2);
+            _ibvs_state.valid += ((uint8_t)2);
         }
         else
         {
@@ -480,18 +527,20 @@ MulticopterOPFIBVS::task_main()
         }
 
         /* for y direction motion and roll */
-        if(isValid(&_img_feature,0))
+        if(isValid(&_img_feature,1))
         {
+//            warnx("S2 is valid");
             e_sl2 = _img_feature.s[1];
             tilde_e_sl2 = e_sl2 - hat_e_sl2;
             hat_e_sl2 += (-hat_v_sl2 + _params.l_l2*tilde_e_sl2)*dt;
             hat_v_sl2 += -_params.l_l2*_params.l_ld2*tilde_e_sl2*dt;
 
             float eta_e2_hat;
-            if(ibvs_int_reset)
+            if(ibvs_int_reset_roll)
             {
                 eta_e2_hat = 0.0f;
                 eta_e2_update = 0.0f;
+                ibvs_int_reset_roll = false;
             }
             else
             {
@@ -499,8 +548,13 @@ MulticopterOPFIBVS::task_main()
                 eta_e2_hat = _params.gamma_l2*(e_sl2+tilde_e_sl2) +  _params.gamma_l2*_params.l_ld2*eta_e2_update;
             }
 
-            _att_sp_ibvs.pitch_body = -_params.k_l2*(hat_e_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.l_ld2*e_sl2)+ eta_e2_hat;
+            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.l_ld2*e_sl2)+ eta_e2_hat;
             _att_sp_ibvs.valid += ((uint8_t)1);
+
+            _ibvs_state.hat_e_sl2 = hat_e_sl2;
+            _ibvs_state.hat_v_sl2 = hat_v_sl2;
+            _ibvs_state.eta_e2_hat = eta_e2_hat;
+            _ibvs_state.valid += ((uint8_t)1);
         }
         else
         {
@@ -517,10 +571,11 @@ MulticopterOPFIBVS::task_main()
             hat_v_sh += -_params.l_h*_params.l_hd*tilde_e_sh*dt;
 
             float C_g_hat;
-            if(ibvs_int_reset)
+            if(ibvs_int_reset_thrust)
             {
                 C_g_hat = 0.0f;
                 C_g_hat_update = 0.0f;
+                ibvs_int_reset_thrust = false;
             }
             else
             {
@@ -530,21 +585,37 @@ MulticopterOPFIBVS::task_main()
 
             _att_sp_ibvs.thrust = _params.k_h*(hat_v_sh + (_params.l_hd-_params.l_h)*tilde_e_sh-_params.l_hd*e_sh) + C_g_hat;
             _att_sp_ibvs.valid += ((uint8_t)4);
+
+            _ibvs_state.hat_e_sh = hat_e_sh;
+            _ibvs_state.hat_v_sh = hat_v_sh;
+            _ibvs_state.c_g_hat = C_g_hat;
+            _ibvs_state.valid += ((uint8_t)4);
         }
         else
         {
             C_g_hat_update = 0.0f;
             _att_sp_ibvs.thrust = 0.0f;
+            _ibvs_state.valid = 0;
         }
 
         // for yaw motion
         if(isValid(&_img_feature,3))
         {
+//            warnx("S4 is valid");
             float alpha = _img_feature.s[3];
             if (alpha>0.4f) alpha  = 0.4f;
             if (alpha<-0.4f) alpha = -0.4f;
             _att_sp_ibvs.yaw_body = euler_angles(2) + _params.k_psi*alpha;
+            //TODO how to wrap up yaw motion?
+//            _att_sp_ibvs.yaw_body += _params.k_psi*0.2*alpha*dt;
             _att_sp_ibvs.valid += ((uint8_t)8);
+//            if(t>t_print)
+//            {
+//                t_print += 3000000;
+//                warnx("alpha: %.4f, yaw_cur:%.4f, k_psi:%.4f, alpha:%.4f, yaw_ref: %.4f"
+//                  ,(double)alpha, (double)euler_angles(2),(double)_params.k_psi,(double)(_params.k_psi*alpha),
+//                      (double)_att_sp_ibvs.yaw_body);
+//            }
         }
         else
         {
@@ -557,141 +628,22 @@ MulticopterOPFIBVS::task_main()
 
         if (prev_nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
         {
-            warnx("here");
+//            warnx("here");
         }
-
-
-//        if(_global_pos.valid)
-//        {
-////            x direction lateral control using pitch
-//            _att_sp_ibvs.valid = 0;
-//            float vxb, vyb, vzb,yaw;
-//            math::Quaternion q(_global_pos.q);
-//            yaw = q.getYawT(); //TODO check the sign
-
-//            vxb = _global_pos.v[0]*cos(yaw) - _global_pos.v[1]*sin(yaw);
-//            vyb = _global_pos.v[0]*sin(yaw) + _global_pos.v[1]*cos(yaw);
-//            vzb = _global_pos.v[2];
-
-//            float hl,sat_beta;
-//            sat_beta =_params.sat_beta;
-//            hl=sqrt(1+sat_beta*sat_beta*_img_feature.s[0]*_img_feature.s[0]+sat_beta*sat_beta*_img_feature.s[1]*_img_feature.s[1]);
-
-
-//            if(isValid(&_img_feature,0)) //pitch theta
-//            {
-//                float q11 = sat_beta*_img_feature.s[0]/hl;
-//                float k3, k4;
-//                float delta1, delta2;
-
-////                k3 = _params.ibvs_kvx;
-////                k4 = _params.ibvs_kx/k3;
-//                k3 = _params.ibvs_kvx;
-//                k4 = _params.ibvs_kx;
-
-//                delta1 = q11;
-//                delta2 = vxb - k4*delta1;
-
-//                _att_sp_ibvs.pitch = sat_func(delta2,_params.l3,_params.M3,k3);
-//                _att_sp_ibvs.valid += 0|((uint8_t)2);
-//            }
-//            else
-//            {
-//                _att_sp_ibvs.pitch = 0.0;
-//            }
-
-////            y direction lateral control using roll
-//            if(isValid(&_img_feature,1)) //roll phi
-//            {
-//                float q12 = sat_beta*_img_feature.s[1]/hl;
-//                float k3, k4;
-//                float delta1, delta2;
-
-////                k3 = _params.ibvs_kvy;
-////                k4 = _params.ibvs_ky/k3;
-//                k3 = _params.ibvs_kvy;
-//                k4 = _params.ibvs_ky;
-
-//                delta1 = q12;
-//                delta2 = vyb - k4*delta1;
-
-//                _att_sp_ibvs.roll   = -sat_func(delta2,_params.l3,_params.M3,k3);
-//                _att_sp_ibvs.valid += 0|((uint8_t)1);
-
-//            }
-//            else
-//            {
-//                _att_sp_ibvs.roll = 0.0;
-//            }
-
-
-//            // z direction control using thrust
-//            if(isValid(&_img_feature,2))
-//            {
-
-//                float q13 = _img_feature.s[2] - 1.0;
-
-//                float k1, k2;
-//                float delta1, delta2;
-//                float pdcontrol;
-
-//                k1 = _params.ibvs_kz;
-//                k2 = _params.ibvs_kvz;
-
-
-//                delta1 = q13;
-//                delta2 = vzb - sat_func(delta1,_params.l1,_params.M1,k1);
-
-//                if(mission_switch)
-//                    ibvs_thrust_int += _params.ibvs_kiz*delta2*dt;
-//                else
-//                    ibvs_thrust_int = 0.0f;
-
-//                if(ibvs_thrust_int>_params.thrust_int_sat)//0.04
-//                    ibvs_thrust_int = _params.thrust_int_sat;
-//                else if(ibvs_thrust_int<(0.0f-_params.thrust_int_sat))
-//                    ibvs_thrust_int = 0.0f-_params.thrust_int_sat;
-//                else
-//                {}
-
-//                pdcontrol = sat_func(delta2,_params.l2,_params.M2,k2);
-//                _att_sp_ibvs.thrust = pdcontrol + ibvs_thrust_int + _params.thrust_g;
-//                _att_sp_ibvs.valid += 0|((uint8_t)8);
-//            }
-//            else
-//            {
-//                _att_sp_ibvs.thrust = 0.0;
-//            }
-
-//            // yaw control
-//            if(isValid(&_img_feature,3))
-//            {
-//                float alpha = _img_feature.s[3];
-//                if (alpha>0.4) alpha  = 0.4;
-//                if (alpha<-0.4) alpha = -0.4;
-//                _att_sp_ibvs.yaw = yaw + _params.ibvs_kyaw*alpha;
-//                _att_sp_ibvs.valid += 0|((uint8_t)4);
-//            }
-//            else
-//            {
-//                _att_sp_ibvs.yaw = 0;
-//            }
-
-////            warnx("r p t:%2.3f, %2.3f, %2.3f",_att_sp_ibvs.roll, _att_sp_ibvs.pitch, _att_sp_ibvs.thrust);
-//        }
-//        else {
-//            _att_sp_ibvs.roll = 0;
-//            _att_sp_ibvs.pitch = 0;
-//            _att_sp_ibvs.yaw = 0;
-//            _att_sp_ibvs.thrust = 0;
-//            _att_sp_ibvs.valid = 0;
-//        }
 
         if(_att_sp_ibvs_pub_fd != nullptr){
             orb_publish(ORB_ID(vehicle_image_attitude_setpoint),_att_sp_ibvs_pub_fd, &_att_sp_ibvs);
         }
         else{
             orb_advertise(ORB_ID(vehicle_image_attitude_setpoint),&_att_sp_ibvs);
+        }
+
+        if(_ibvs_state_pub_fd != nullptr)
+        {
+            orb_publish(ORB_ID(ibvs_state),_ibvs_state_pub_fd, &_ibvs_state);
+        }
+        else{
+            orb_advertise(ORB_ID(ibvs_state),&_ibvs_state);
         }
 //        perf_count(_loop_perf);
         prev_nav_state = _vehicle_status.nav_state;
@@ -711,7 +663,12 @@ void MulticopterOPFIBVS::status()
             (double)_img_feature.s[2], (double)_img_feature.s[3], (double)_img_feature.s[4]);
     warnx("Reference roll pitch yaw thrust: %8.4f %8.4f %8.4f %8.4f",(double)_att_sp_ibvs.roll_body,
           (double)_att_sp_ibvs.pitch_body,(double)_att_sp_ibvs.yaw_body, (double)_att_sp_ibvs.thrust);
-//    warnx("L1,M1,L2,M2,L3,M3: %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f",_params.l1,_params.M1,_params.l2,_params.M2,_params.l3,_params.M3);
+    warnx("e_sh:%.4f, hat_esh:%.4f, tilde_esh:%.4f, hat_vsh:%.4f, C_ghat_update: %.4f"
+          , (double)e_sh, (double)hat_e_sh, (double)tilde_e_sh, (double)hat_v_sh, (double)C_g_hat_update);
+    warnx("e_sl1:%.4f, hat_esl1:%.4f, tilde_esl1:%.4f, hat_vsl1:%.4f, eta_1_update: %.4f"
+          , (double)e_sl1, (double)hat_e_sl1, (double)tilde_e_sl1, (double)hat_v_sl1, (double)eta_e1_update);
+    warnx("e_sl2:%.4f, hat_esl2:%.4f, tilde_esl2:%.4f, hat_vsl2:%.4f, eta_2_update: %.4f"
+          , (double)e_sl2, (double)hat_e_sl2, (double)tilde_e_sl2, (double)hat_v_sl2, (double)eta_e2_update);
 }
 
 /**

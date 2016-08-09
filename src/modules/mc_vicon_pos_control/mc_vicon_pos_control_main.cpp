@@ -133,7 +133,7 @@ private:
 
         float acc_hor_max;
         float tilt_max_air;
-        float ibvs_enable;
+        uint8_t ibvs_enable;
     } _params;
 
     int parameters_update(bool force);
@@ -142,7 +142,6 @@ private:
     orb_advert_t _mavlink_log_pub;
     orb_advert_t _att_sp_pub;
     orb_advert_t _local_pos_sp_pub;
-    orb_advert_t _img_att_sp_pub;
 
 
     /*Publish structure*/
@@ -222,7 +221,6 @@ ViconControl::ViconControl():
     _mavlink_log_pub(nullptr),
     _att_sp_pub(nullptr),
     _local_pos_sp_pub(nullptr),
-    _img_att_sp_pub(nullptr),
     /*Publish structure*/
     _att_sp{},
     _local_pos_sp{},
@@ -297,7 +295,6 @@ ViconControl::ViconControl():
 
     /* fetch initial parameter values */
     parameters_update(true);
-
 }
 
 
@@ -477,7 +474,7 @@ int ViconControl::parameters_update(bool force)
         _params.tilt_max_air = math::radians(_params.tilt_max_air);
 
         param_get(_params_handles.ibvs_enable,&_params.ibvs_enable);
-
+        warnx("param updated: _params.ibvs_enable: %d", _params.ibvs_enable);
     }
 
     return OK;
@@ -1003,6 +1000,7 @@ void ViconControl::task_main(){
     _manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
     _control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
     _vehicle_land_detected_sub = orb_subscribe(ORB_ID(vehicle_land_detected));
+    _vehicle_img_att_sp_sub = orb_subscribe(ORB_ID(vehicle_image_attitude_setpoint));
 
     parameters_update(true);
     /* initialize values of critical structs until first regular update */
@@ -1025,9 +1023,9 @@ void ViconControl::task_main(){
     uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
 
 
-    int count_traj=1;
-    hrt_abstime time = hrt_absolute_time();
-    hrt_abstime print_time = time + 5000000;
+//    int count_traj=1;
+//    hrt_abstime time = hrt_absolute_time();
+//    hrt_abstime print_time = time + 5000000;
 
     while (!_task_should_exit)
     {
@@ -1107,17 +1105,6 @@ void ViconControl::task_main(){
 //                    (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_MANUAL
 //                     ||_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL);
 
-            _img_att_sp.roll_body = _att_sp.roll_body;
-            _img_att_sp.pitch_body = _att_sp.pitch_body;
-            _img_att_sp.yaw_body = _att_sp.yaw_body;
-            _img_att_sp.thrust = _att_sp.thrust;
-            /* publish vehicle_image_attitude_setpoint  */
-            if (_img_att_sp_pub != nullptr) {
-                orb_publish(ORB_ID(vehicle_image_attitude_setpoint), _img_att_sp_pub, &_img_att_sp);
-
-            } else {
-                _img_att_sp_pub = orb_advertise(ORB_ID(vehicle_image_attitude_setpoint), &_img_att_sp);
-            }
 
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL)
             {
@@ -1134,8 +1121,6 @@ void ViconControl::task_main(){
                 if (!_vehicle_land_detected.landed) {
                     _att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get());
                 }
-
-
             }
 
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)
@@ -1149,48 +1134,76 @@ void ViconControl::task_main(){
                         reset_int_z_manual = true;
                 }
 
-                if(time> print_time)
-                {
-                    print_time = time + 5000000;
-                    if(count_traj%2==0)
-                    {
-                        _pos_sp(0) += 1.0f;
-                        _pos_sp(1) += 1.0f ;
-                    }
-                    else if(count_traj%2==1)
-                    {
-                        _pos_sp(0) -= 1.0f;
-                        _pos_sp(1) -= 1.0f;
-                    }
-                    count_traj ++;
-//                    warnx("thrust_given: %.5f", (double)_att_sp.thrust);
-                }
-                time = hrt_absolute_time();
+//                if(time> print_time)
+//                {
+//                    print_time = time + 5000000;
+//                    if(count_traj%2==0)
+//                    {
+//                        _pos_sp(0) += 1.0f;
+//                        _pos_sp(1) += 1.0f ;
+//                    }
+//                    else if(count_traj%2==1)
+//                    {
+//                        _pos_sp(0) -= 1.0f;
+//                        _pos_sp(1) -= 1.0f;
+//                    }
+//                    count_traj ++;
+////                    warnx("thrust_given: %.5f", (double)_att_sp.thrust);
+//                }
+//                time = hrt_absolute_time();
             }
 
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
             {
-                uint8_t enable = (uint8_t)_params.ibvs_enable;
+                uint8_t enable = _params.ibvs_enable;
                 bool roll_enabled = (enable & (uint8_t)1);
                 bool pitch_enabled = (enable & (uint8_t)2);
-                bool yaw_enabled = (enable & (uint8_t)4);
-                bool thrust_enabled = (enable & (uint8_t)8);
+                bool thrust_enabled = (enable & (uint8_t)4);
+                bool yaw_enabled = (enable & (uint8_t)8);
 
                 bool img_roll_valid  = (_img_att_sp.valid &((uint8_t)1));
                 bool img_pitch_valid = (_img_att_sp.valid &((uint8_t)2));
-                bool img_yaw_valid = (_img_att_sp.valid &((uint8_t)4));
-                bool img_thrust_valid = (_img_att_sp.valid &((uint8_t)8));
+                bool img_thrust_valid = (_img_att_sp.valid &((uint8_t)4));
+                bool img_yaw_valid = (_img_att_sp.valid &((uint8_t)8));
+
+                float thr_min = _params.thr_min;
+                float tilt_max = _params.tilt_max_air;
+                float thr_max = _params.thr_max;
+
+//                warnx("After: Enable %d, IMG_Valid %d", enable, _img_att_sp.valid);
 
                 if(roll_enabled && img_roll_valid)
                 {
                     _att_sp.roll_body =_img_att_sp.roll_body;
+                    if(_att_sp.roll_body>tilt_max)
+                        _att_sp.roll_body = tilt_max;
+                    else if(_att_sp.roll_body<-tilt_max)
+                        _att_sp.roll_body = -tilt_max;
+//                    warnx("roll controlled by image");
                 }
-                if(pitch_enabled && img_pitch_valid )
+                if(pitch_enabled && img_pitch_valid)
+                {
                     _att_sp.pitch_body = _img_att_sp.pitch_body;
+                    if(_att_sp.pitch_body>tilt_max)
+                        _att_sp.pitch_body = tilt_max;
+                    else if(_att_sp.pitch_body<-tilt_max)
+                        _att_sp.pitch_body = -tilt_max;
+//                    warnx("pitch controlled by image");
+                }
                 if(yaw_enabled && img_yaw_valid)
+                {
                     _att_sp.yaw_body = _img_att_sp.yaw_body;
+//                    warnx("yaw controlled by image");
+                }
                 if(thrust_enabled && img_thrust_valid)
-                    _att_sp.thrust = _img_att_sp.thrust;
+                {
+                    _att_sp.thrust = _img_att_sp.thrust + _params.thr_hover;
+                    if(_att_sp.thrust>thr_max)
+                        _att_sp.thrust = thr_max;
+                    else if(_att_sp.thrust<thr_min)
+                        _att_sp.thrust = thr_min;
+//                    warnx("thrust controlled by image");
+                }
             }
 
             _att_sp.timestamp = hrt_absolute_time();

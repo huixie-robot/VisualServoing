@@ -116,6 +116,7 @@
 #include <uORB/topics/image_features.h>
 // ADDED by HX
 #include <uORB/topics/vehicle_image_attitude_setpoint.h>
+#include <uORB/topics/ibvs_state.h>
 
 
 #include <systemlib/systemlib.h>
@@ -1201,6 +1202,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_gps_position_s dual_gps_pos;
         struct image_features_s img_fe;   //Added by Xie
         struct vehicle_image_attitude_setpoint_s iasp; //Added by HX
+        struct ibvs_state_s vsst;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1264,6 +1266,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_LOAD_s log_LOAD;
             struct log_PXYF_s log_PXYF; //Added by Xie
             struct log_IASP_s log_IASP;
+            struct log_VSST_s log_VSST;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1316,6 +1319,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int cpuload_sub;
         int pxyf_sub; //Added by Xie
         int iasp_sub;
+        int vsst_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1361,6 +1365,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.cpuload_sub = -1;
     subs.pxyf_sub = -1; // Added by Xie
     subs.iasp_sub = -1;
+    subs.vsst_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2323,6 +2328,26 @@ int sdlog2_thread_main(int argc, char *argv[])
             log_msg.body.log_IASP.yaw_body = buf.iasp.yaw_body;
             log_msg.body.log_IASP.thrust = buf.iasp.thrust;
             LOGBUFFER_WRITE_AND_COUNT(IASP);
+        }
+
+        /* --- VSST --- */
+        if(copy_if_updated(ORB_ID(ibvs_state),&subs.vsst_sub,&buf.vsst)) { //Added by Xie
+            log_msg.msg_type = LOG_VSST_MSG;
+            log_msg.body.log_VSST.valid = buf.vsst.valid;
+
+            log_msg.body.log_VSST.hat_e_sh = buf.vsst.hat_e_sh;
+            log_msg.body.log_VSST.hat_v_sh = buf.vsst.hat_v_sh;
+            log_msg.body.log_VSST.c_g_hat = buf.vsst.c_g_hat;
+
+            log_msg.body.log_VSST.hat_e_sl1 = buf.vsst.hat_e_sl1;
+            log_msg.body.log_VSST.hat_v_sl1 = buf.vsst.hat_v_sl1;
+            log_msg.body.log_VSST.eta_e1_hat = buf.vsst.eta_e1_hat;
+
+            log_msg.body.log_VSST.hat_e_sl2 = buf.vsst.hat_e_sl2;
+            log_msg.body.log_VSST.hat_v_sl2 = buf.vsst.hat_v_sl2;
+            log_msg.body.log_VSST.eta_e2_hat = buf.vsst.eta_e2_hat;
+
+            LOGBUFFER_WRITE_AND_COUNT(VSST);
         }
 
 		pthread_mutex_lock(&logbuffer_mutex);

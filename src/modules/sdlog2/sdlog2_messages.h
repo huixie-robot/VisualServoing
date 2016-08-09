@@ -644,6 +644,25 @@ struct log_IASP_s{
     uint8_t valid;
 };
 
+
+#define LOG_VSST_MSG 64
+struct log_VSST_s{
+    float hat_e_sh;
+    float hat_v_sh;
+    float c_g_hat;
+    
+    float hat_e_sl1;
+    float hat_v_sl1;
+    float eta_e1_hat;
+    
+    float hat_e_sl2;
+    float hat_v_sl2;
+    float eta_e2_hat;
+    
+    uint8_t valid;
+};
+
+
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -735,6 +754,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(LOAD, "f", "CPU"),
     LOG_FORMAT(PXYF,"QMffffffff","t,val,s0,s1,s2,s3,s4,s5,s6,s7"), //ADDED by Xie
     LOG_FORMAT(IASP,"ffffM","Roll,Pitch,Yaw,Thrust,val"),
+    LOG_FORMAT(VSST,"fffffffffM","Esh,Vsh,Cgh,Esl1,Vsl1,Etae1,Esl2,Vsl2,Etae2,val"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),

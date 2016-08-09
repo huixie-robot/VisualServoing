@@ -120,6 +120,7 @@ set(msg_file_names
 	pixy.msg
 	image_features.msg
 	vehicle_image_attitude_setpoint.msg
+	ibvs_state.msg
 	)
 
 # Get absolute paths

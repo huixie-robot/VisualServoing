@@ -118,7 +118,8 @@ set(config_module_list
 	#
 	modules/pixy
 	modules/pixy_fe
-	modules/mc_ibvs_hg
+#	modules/mc_ibvs_hg
+	modules/mc_ibvs_adap
 	#
 	# Libraries
 	#

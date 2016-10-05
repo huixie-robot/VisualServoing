@@ -33,7 +33,7 @@
 px4_add_module(
 	MODULE modules__mc_ibvs_adap
 	MAIN mc_ibvs_adap
-	STACK_MAIN 1200
+	STACK_MAIN 2048
 	SRCS
 		mc_ibvs_adap.cpp
 	DEPENDS

@@ -66,8 +66,8 @@
 
 
 static bool isValid(struct image_features_s *image_features, int n);
-//static math::Vector<3> projector(math::Vector<3> input, math::Vector<3> estimate, float bound, float epsilon = 0.000001f);
-static math::Vector<2> projector(math::Vector<2> input, math::Vector<2> estimate, float bound, float epsilon = 0.000001f);
+static void projector(math::Vector<3> &input, const math::Vector<3> &estimate, float bound, float epsilon = 0.000001f);
+static void projector(math::Vector<2> &input, const math::Vector<2> &estimate, float bound, float epsilon = 0.000001f);
 
 
 
@@ -143,6 +143,8 @@ private:
         param_t l2_p;
 
         param_t k_psi;
+
+        param_t thr_hover;
     }_params_handles;
 
     struct{
@@ -174,6 +176,7 @@ private:
         float l2_p;
 
         float k_psi;
+        float thr_hover;
     }_params;
 
     /**
@@ -207,20 +210,19 @@ private:
     math::Vector<2> vartheta_h1;
     math::Vector<2> vartheta_h2;
 
-    float e_sl1;
-    float tilde_e_sl1;
-    float hat_e_sl1;
-    float hat_v_sl1;
-    float eta_e1_update;
-
-    float e_sl2;
-    float tilde_e_sl2;
-    float hat_e_sl2;
-    float hat_v_sl2;
-    float eta_e2_update;
+    // state for lateral subsystem
+    math::Vector<2> e_sl;
+    math::Vector<4> xi_ly;
+    math::Vector<4> xi_lu;
+    math::Vector<4> xi_lphi;
+    math::Vector<4> xi_ltheta;
+    math::Vector<3> vartheta_l1;
+    math::Vector<3> vartheta_l2;
 
     math::Vector<3> euler_angles;
     math::Matrix<3, 3> _R;
+    float psidot;
+
 };
 
 namespace ibvs
@@ -255,16 +257,7 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
     _ibvs_state{},
     // state variables
     e_sh(0.0f),
-    e_sl1(0.0f),
-    tilde_e_sl1(0.0f),
-    hat_e_sl1(0.0f),
-    hat_v_sl1(0.0f),
-    eta_e1_update(0.0f),
-    e_sl2(0.0f),
-    tilde_e_sl2(0.0f),
-    hat_e_sl2(0.0f),
-    hat_v_sl2(0.0f),
-    eta_e2_update(0.0f)
+    psidot(0.0f)
 {
     // Make the quaternion valid for control state
     _ctrl_state.q[0] = 1.0f;
@@ -274,6 +267,16 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
     xi_hd.zero();
     vartheta_h1.zero();
     vartheta_h2.zero();
+
+
+
+    e_sl.zero();
+    xi_ly.zero();
+    xi_lu.zero();
+    xi_lphi.zero();
+    xi_ltheta.zero();
+    vartheta_l1.zero();
+    vartheta_l2.zero();
 
     euler_angles.zero();
     _R.identity();
@@ -313,6 +316,8 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
     _params_handles.l2_p         = param_find("IBVS_L2_P");
 
     _params_handles.k_psi       = param_find("IBVS_K_PSI1");
+    _params_handles.thr_hover   = param_find("VCN_THR_HOVER");
+//    _params.thr_hover
 
     /* fetch initial parameter values */
     parameters_update(true);
@@ -376,6 +381,7 @@ MulticopterOPFIBVS::parameters_update(bool force)
         param_get(_params_handles.l2_p,&(_params.l2_p));
 
         param_get(_params_handles.k_psi,&(_params.k_psi));
+        param_get(_params_handles.thr_hover,&(_params.thr_hover));
     }
     return OK;
 }
@@ -391,7 +397,7 @@ MulticopterOPFIBVS::start()
     _ibvs_task = px4_task_spawn_cmd("mc_ibvs_adap",
                        SCHED_DEFAULT,
                        SCHED_PRIORITY_POSITION_CONTROL,
-                       1024,
+                       2048,
                        (main_t)&MulticopterOPFIBVS::task_main_trampoline,
                        nullptr);
 
@@ -437,6 +443,7 @@ MulticopterOPFIBVS::poll_subscriptions()
         math::Quaternion q_att(_ctrl_state.q[0], _ctrl_state.q[1], _ctrl_state.q[2], _ctrl_state.q[3]);
 //        _R = q_att.to_dcm();
         euler_angles = q_att.to_euler();
+        psidot = _ctrl_state.yaw_rate;
 //        warnx("R P Y: %.4f, %.4f, %.4f", (double)euler_angles(0),(double)euler_angles(1),(double)euler_angles(2));
     }
 }
@@ -462,11 +469,51 @@ MulticopterOPFIBVS::task_main()
     hrt_abstime t_prev = hrt_absolute_time();
 //    hrt_abstime t_print = 0;
 
-    bool ibvs_on_prev = false;
-//    bool ibvs_int_reset_roll = true;
-//    bool ibvs_int_reset_pitch = true;
-    bool ibvs_int_reset_thrust = true;
+    // Control parameters for lateral subsystem
+    math::Matrix<4,4> A_L;
+    math::Matrix<4,2> L_L;
+    math::Matrix<2,4> C_L;
+    math::Matrix<4,4> Delta_S2;
+    math::Matrix<2,2> S;
+    math::Matrix<4,2> B_L;
 
+    // Initialized parameters
+    A_L.zero();
+    A_L(0,2) = -1.0f;
+    A_L(1,3) = -1.0f;
+
+    L_L.zero();
+
+    C_L.zero();
+    C_L(0,0) = 1.0f;
+    C_L(1,1) = 1.0f;
+
+    S.zero();
+    S(0,1) = -1.0f;
+    S(1,0) = 1.0f;
+
+    Delta_S2.zero();
+    Delta_S2(0,1) = -1.0f;
+    Delta_S2(1,0) = 1.0f;
+    Delta_S2(2,3) = -1.0f;
+    Delta_S2(3,2) = 1.0f;
+
+    B_L.zero();
+    B_L(2,0) = 1.0f;
+    B_L(3,1) = 1.0f;
+
+
+    // Control parameters for height subsystem
+    math::Matrix<2,2> Ao;
+    math::Vector<2> Lh;
+    math::Vector<2> Bo(0.0f,1.0f);
+    Ao.zero();
+    Ao(0,1) = 1.0f;
+    Lh.zero();
+
+    bool ibvs_on_prev = false;
+    bool ibvs_int_reset_thrust = true;
+    bool ibvs_int_reset_lateral = true;
 
     uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
 
@@ -512,16 +559,14 @@ MulticopterOPFIBVS::task_main()
 
         if(ibvs_on == true && ibvs_on_prev == false)
         {
-//            ibvs_int_reset_roll = true;
-//            ibvs_int_reset_pitch = true;
             ibvs_int_reset_thrust = true;
+            ibvs_int_reset_lateral = true;
         }
 
         if(ibvs_on != true)
         {
-//            ibvs_int_reset_roll = true;
-//            ibvs_int_reset_pitch = true;
             ibvs_int_reset_thrust = true;
+            ibvs_int_reset_lateral = true;
         }
 
 
@@ -530,86 +575,139 @@ MulticopterOPFIBVS::task_main()
         _att_sp_ibvs.valid = 0;
         _ibvs_state.valid = 0;
 
-//        /* for x direction motion and pitch */
-//        if(isValid(&_img_feature,0))
-//        {
-////            warnx("S1 is valid");
-//            e_sl1 = _img_feature.s[0];
-//            tilde_e_sl1 = e_sl1 - hat_e_sl1;
-//            hat_e_sl1 += (-hat_v_sl1 + _params.l_l1*tilde_e_sl1)*dt;
-//            hat_v_sl1 += -_params.l_l1*_params.l_ld1*tilde_e_sl1*dt;
+        /* for Lateral direction motion */
+        if(isValid(&_img_feature,0)&&isValid(&_img_feature,1))
+        {
+            float u_h = _att_sp_ibvs.thrust + _params.thr_hover;
+            float k1_l = _params.k1_r;
+            float d1_l = _params.d1_r;
+            float k2_l = _params.k2_r;
+            float d2_l = _params.d2_r;
+            float l1_l = _params.l1_r;
+            float l2_l = _params.l2_r;
+            float gamma1_l = _params.gamma1_r;
+            float gamma2_l = _params.gamma2_r;
 
-//            float eta_e1_hat;
-//            if(ibvs_int_reset_pitch)
-//            {
-//                eta_e1_hat = 0.0f;
-//                eta_e1_update = 0.0f;
-//                ibvs_int_reset_pitch = false;
-//            }
-//            else
-//            {
-//                eta_e1_update += (e_sl1+tilde_e_sl1)*dt;
-//                eta_e1_hat = -_params.gamma_l1*(e_sl1+tilde_e_sl1) -  _params.gamma_l1*_params.l_ld1*eta_e1_update;
-//            }
+            L_L(0,0) = l1_l;
+            L_L(1,1) = l1_l;
+            L_L(2,0) = -l2_l;
+            L_L(3,1) = -l2_l;
 
-//            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.l_ld1*e_sl1) + eta_e1_hat;
+            const math::Vector<2> El1(1.0f,0.0f);
+            const math::Vector<2> El2(0.0f,1.0f);
 
-//            _ibvs_state.hat_e_sl1 = hat_e_sl1;
-//            _ibvs_state.hat_v_sl1 = hat_v_sl1;
-//            _ibvs_state.eta_e1_hat = eta_e1_hat;
+            e_sl(0) = _img_feature.s[0];
+            e_sl(1) = _img_feature.s[1];
+            math::Vector<2> delta_l1(e_sl);
 
-//            _att_sp_ibvs.valid += ((uint8_t)2);
-//            _ibvs_state.valid += ((uint8_t)2);
-//        }
-//        else
-//        {
-//            eta_e1_update = 0.0f;
-//            _att_sp_ibvs.pitch_body = 0.0f;
-//        }
+            math::Vector<2> xi_ly1(xi_ly(0),xi_ly(1));
+            math::Vector<2> xi_ly2(xi_ly(2),xi_ly(3));
+            math::Vector<2> xi_lu1(xi_lu(0),xi_lu(1));
+            math::Vector<2> xi_lu2(xi_lu(2),xi_lu(3));
+            math::Vector<2> xi_lphi1(xi_lphi(0),xi_lphi(1));
+            math::Vector<2> xi_lphi2(xi_lphi(2),xi_lphi(3));
+            math::Vector<2> xi_ltheta1(xi_ltheta(0),xi_ltheta(1));
+            math::Vector<2> xi_ltheta2(xi_ltheta(2),xi_ltheta(3));
 
-//        /* for y direction motion and roll */
-//        if(isValid(&_img_feature,1))
-//        {
-////            warnx("S2 is valid");
-//            e_sl2 = _img_feature.s[1];
-//            tilde_e_sl2 = e_sl2 - hat_e_sl2;
-//            hat_e_sl2 += (-hat_v_sl2 + _params.l_l2*tilde_e_sl2)*dt;
-//            hat_v_sl2 += -_params.l_l2*_params.l_ld2*tilde_e_sl2*dt;
+            math::Vector<2> varpi_l1_1(delta_l1*(k1_l+d1_l) - xi_ly2);
+            math::Vector<2> varpi_l1_2(xi_lphi2);
+            math::Vector<2> varpi_l1_3(xi_ltheta2);
 
-//            float eta_e2_hat;
-//            if(ibvs_int_reset_roll)
-//            {
-//                eta_e2_hat = 0.0f;
-//                eta_e2_update = 0.0f;
-//                ibvs_int_reset_roll = false;
-//            }
-//            else
-//            {
-//                eta_e2_update += (e_sl2+tilde_e_sl2)*dt;
-//                eta_e2_hat = _params.gamma_l2*(e_sl2+tilde_e_sl2) +  _params.gamma_l2*_params.l_ld2*eta_e2_update;
-//            }
+            math::Vector<2> delta_l2(xi_lu2 - varpi_l1_1*vartheta_l1(0) -varpi_l1_2*vartheta_l1(1) -varpi_l1_3*vartheta_l1(2));
 
-//            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.l_ld2*e_sl2)+ eta_e2_hat;
-//            _att_sp_ibvs.valid += ((uint8_t)1);
+            math::Vector<2> varpi_l2_1(xi_lu2*(k1_l+d1_l)*vartheta_l1(0) - delta_l1);
+            math::Vector<2> varpi_l2_2(-xi_lphi2*(k1_l+d1_l)*vartheta_l1(0));
+            math::Vector<2> varpi_l2_3(xi_ltheta2*(k1_l+d1_l)*vartheta_l1(0));
 
-//            _ibvs_state.hat_e_sl2 = hat_e_sl2;
-//            _ibvs_state.hat_v_sl2 = hat_v_sl2;
-//            _ibvs_state.eta_e2_hat = eta_e2_hat;
-//            _ibvs_state.valid += ((uint8_t)1);
-//        }
-//        else
-//        {
-//            eta_e2_update = 0.0f;
-//            _att_sp_ibvs.roll_body = 0.0f;
-//        }
+            math::Vector<2> ell_l_1(-xi_ly2*(k1_l+d1_l) - (xi_ly1 - e_sl)*l2_l);
+            math::Vector<2> ell_l_2(xi_lphi1*l2_l+S*El1*u_h);
+            math::Vector<2> ell_l_3(xi_ltheta1*l2_l+S*El2*u_h);
+
+            math::Vector<2> u_bar_l;
+            u_bar_l = -delta_l2*(k2_l + d2_l*(k1_l+d1_l)*(k1_l+d1_l)*vartheta_l1(0)*vartheta_l1(0))
+                    - varpi_l2_1*vartheta_l2(0) - varpi_l2_2*vartheta_l2(1) - varpi_l2_3*vartheta_l2(2);
+            float u_hd;
+            if(u_h<_params.thr_hover)
+                u_hd = _params.thr_hover;
+            else
+                u_hd = u_h;
+
+            math::Vector<2> uhSeta_m1;
+            uhSeta_m1 = u_bar_l - xi_lu1*l2_l + ell_l_1*vartheta_l1(0) + ell_l_2*vartheta_l1(1) + ell_l_3*vartheta_l1(2)
+                    +(varpi_l1_1*(delta_l1*varpi_l1_1) + varpi_l1_2*(delta_l1*varpi_l1_2) + varpi_l1_3*(delta_l1*varpi_l1_3))*gamma1_l;
+            math::Vector<2> eta_m1_r;
+            math::Matrix<2,2> Sinv;
+            Sinv.zero();
+            Sinv(0,1) = 1.0f;
+            Sinv(1,0) = -1.0f;
+            eta_m1_r = (Sinv*uhSeta_m1)/u_hd;
+            _att_sp_ibvs.roll_body = eta_m1_r(0);
+            _att_sp_ibvs.pitch_body = eta_m1_r(1);
+
+
+            //Observer Part
+            math::Vector<2> eta_m1(euler_angles(1),euler_angles(2));
+            math::Matrix<4,4> A_CL;
+            A_CL = A_L - L_L*C_L - Delta_S2*psidot;
+            xi_ly       += (A_CL*xi_ly + L_L*e_sl)*dt;
+            xi_lu       += (A_CL*xi_lu + B_L*u_h*S*eta_m1)*dt;
+            xi_lphi     += (A_CL*xi_lphi + B_L*u_h*S*El1)*dt;
+            xi_ltheta   += (A_CL*xi_ltheta + B_L*u_h*S*El2)*dt;
+            //Adaptive law
+            if(ibvs_int_reset_lateral)
+            {
+                vartheta_l1.zero();
+                vartheta_l2.zero();
+                ibvs_int_reset_lateral = false;
+            }
+            else
+            {
+                math::Vector<3> vartheta_l1_update;
+                math::Vector<3> vartheta_l2_update;
+                //TODO check the bound
+                vartheta_l1_update(1) = gamma1_l*(delta_l1*varpi_l1_1);
+                vartheta_l1_update(2) = gamma1_l*(delta_l1*varpi_l1_2);
+                vartheta_l1_update(3) = gamma1_l*(delta_l1*varpi_l1_3);
+
+                projector(vartheta_l1_update,vartheta_l1,0.1f);
+
+                vartheta_l2_update(1) = gamma2_l*(delta_l2*varpi_l2_1);
+                vartheta_l2_update(2) = gamma2_l*(delta_l2*varpi_l2_2);
+                vartheta_l2_update(3) = gamma2_l*(delta_l2*varpi_l2_3);
+
+                projector(vartheta_l2_update,vartheta_l2,0.1f);
+
+
+
+                vartheta_l1 = vartheta_l1_update*dt;
+                vartheta_l2 = vartheta_l2_update*dt;
+            }
+
+
+            _att_sp_ibvs.valid += ((uint8_t)1);
+            _ibvs_state.valid += ((uint8_t)1);
+            _att_sp_ibvs.valid += ((uint8_t)2);
+            _ibvs_state.valid += ((uint8_t)2);
+
+            _ibvs_state.hat_e_sl1 = vartheta_l1(0);
+            _ibvs_state.hat_v_sl1 = vartheta_l1(1);
+            _ibvs_state.eta_e1_hat = vartheta_l1(2);
+            _ibvs_state.hat_e_sl2 = vartheta_l2(0);
+            _ibvs_state.hat_v_sl2 = vartheta_l2(1);
+            _ibvs_state.eta_e2_hat = vartheta_l2(2);
+        }
+        else
+        {
+            _att_sp_ibvs.roll_body = 0.0f;
+            _att_sp_ibvs.pitch_body = 0.0f;
+        }
 
 
         if(isValid(&_img_feature,2))
         {
-            math::Matrix<2,2> Ao;
-            math::Vector<2> Lh(_params.l1_h,-_params.l2_h);
-            math::Vector<2> Bo(0.0f,1.0f);
-
+            // update the value of observer gains;
+            Lh(0) = _params.l1_h;
+            Lh(1) = -_params.l2_h;
             e_sh = _img_feature.s[2] - 1.0f;
             float tilde_xi_hy1 = xi_hy(0) - e_sh;
             math::Vector<2> varpi_h1((_params.k1_h+_params.d1_h)*e_sh -xi_hy(1),
@@ -625,40 +723,40 @@ MulticopterOPFIBVS::task_main()
                     -vartheta_h2*varpi_h2;
 
             // Observer Part
+            float u_h = _att_sp_ibvs.thrust + _params.thr_hover;
             xi_hy += (Ao*xi_hy - Lh*tilde_xi_hy1)*dt;
-            xi_hu += (Ao*xi_hu - Lh*xi_hu(0)+Bo*_att_sp_ibvs.thrust)*dt;
+            xi_hu += (Ao*xi_hu - Lh*xi_hu(0)+Bo*u_h)*dt;
             xi_hd += (Ao*xi_hd - Lh*xi_hd(0)+Bo)*dt;
             // Adaptive Law
             if(ibvs_int_reset_thrust)
             {
-                vartheta_h1(0) = 0.0f;
-                vartheta_h1(1) = 0.0f;
-                vartheta_h2(0) = 0.0f;
-                vartheta_h2(1) = 0.0f;
+                vartheta_h1.zero();
+                vartheta_h2.zero();
                 ibvs_int_reset_thrust = false;
             }
             else
             {
-                math::Vector<2> vartheta_h1_update(varpi_h1*(-_params.gamma1_h*e_sh));
-                math::Vector<2> vartheta_h2_update(varpi_h2*(_params.gamma2_h*delta_h2));
                 //TODO check the bound
-                vartheta_h1 = projector(vartheta_h1_update,vartheta_h1,0.1f)*dt;
-                vartheta_h2 = projector(vartheta_h2_update,vartheta_h2,0.1f)*dt;
+                math::Vector<2> vartheta_h1_update(varpi_h1*(-_params.gamma1_h*e_sh));
+                projector(vartheta_h1_update,vartheta_h1,0.1f);
+                math::Vector<2> vartheta_h2_update(varpi_h2*(_params.gamma2_h*delta_h2));
+                projector(vartheta_h2_update,vartheta_h2,0.1f);
+
+                vartheta_h1 = vartheta_h1_update*dt;
+                vartheta_h2 = vartheta_h2_update*dt;
             }
 
             _att_sp_ibvs.valid += ((uint8_t)4);
+            _ibvs_state.valid += ((uint8_t)4);
 
-            //TODO check IBVS update
-//            _ibvs_state.hat_e_sh = hat_e_sh;
-//            _ibvs_state.hat_v_sh = hat_v_sh;
-//            _ibvs_state.c_g_hat = C_g_hat;
-//            _ibvs_state.valid += ((uint8_t)4);
+            _ibvs_state.hat_e_sh = vartheta_h1(0);
+            _ibvs_state.hat_v_sh = vartheta_h1(1);
+            _ibvs_state.c_g_hat = vartheta_h2(0);
+            _ibvs_state.extras = vartheta_h2(1);
         }
         else
         {
-//            C_g_hat_update = 0.0f;
-//            _att_sp_ibvs.thrust = 0.0f;
-//            _ibvs_state.valid = 0;
+            _att_sp_ibvs.thrust = 0.0f;
         }
 
         // for yaw motion
@@ -684,8 +782,6 @@ MulticopterOPFIBVS::task_main()
         {
             _att_sp_ibvs.yaw_body = 0;
         }
-
-
 
 
 
@@ -798,14 +894,42 @@ bool isValid(struct image_features_s *image_features, int n)
 }
 
 //TODO improve the function to constant
-//math::Vector<3> projector(math::Vector<3> input, math::Vector<3> estimate, float bound, float epsilon){
-//    math::Vector<3> update(0.0f,0.0f,0.0f);
-//    update = input*bound + estimate*epsilon;
-//    return update;
-//}
+void projector(math::Vector<3> &input, const math::Vector<3> &estimate, float bound, float epsilon){
 
-math::Vector<2> projector(math::Vector<2> input, math::Vector<2> estimate, float bound, float epsilon){
-    math::Vector<2> update(0.0f,0.0f);
-    update = input*bound + estimate*epsilon;
-    return update;
+    if(epsilon<0.00001f)
+        epsilon = 0.00001f;
+    if(bound<0.001f)
+        bound = 0.001f;
+
+    float pl_num = estimate*estimate - bound*bound;
+    float pl_partial_times_mu = input*estimate;
+
+    if(pl_num>0&&pl_partial_times_mu>0){
+        float pl = pl_num/(epsilon*epsilon + 2*epsilon*bound);
+        math::Matrix<3,1> pl_partial;
+        math::Matrix<3,3> IdentityMatrix;
+        IdentityMatrix.identity();
+        pl_partial.set_col(0,estimate);
+        input = (IdentityMatrix - (pl_partial*pl_partial.transposed())*pl/(estimate*estimate))*input;
+    }
+}
+
+void projector(math::Vector<2> &input, const math::Vector<2> &estimate,float bound, float epsilon)
+{
+    if(epsilon < 0.00001f)
+        epsilon = 0.00001f;
+    if(bound < 0.001f)
+        bound = 0.001f;
+
+    float pl_num = estimate*estimate - bound*bound;
+    float pl_partial_times_mu = input*estimate;
+
+    if(pl_num>0&&pl_partial_times_mu>0){
+        float pl = pl_num/(epsilon*epsilon + 2*epsilon*bound);
+        math::Matrix<2,1> pl_partial;
+        math::Matrix<2,2> IdentityMatrix;
+        IdentityMatrix.identity();
+        pl_partial.set_col(0,estimate);
+        input = (IdentityMatrix - (pl_partial*pl_partial.transposed())*pl/(estimate*estimate))*input;
+    }
 }

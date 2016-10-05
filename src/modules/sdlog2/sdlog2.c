@@ -2346,6 +2346,8 @@ int sdlog2_thread_main(int argc, char *argv[])
             log_msg.body.log_VSST.hat_e_sl2 = buf.vsst.hat_e_sl2;
             log_msg.body.log_VSST.hat_v_sl2 = buf.vsst.hat_v_sl2;
             log_msg.body.log_VSST.eta_e2_hat = buf.vsst.eta_e2_hat;
+            
+            log_msg.body.log_VSST.extras = buf.vsst.extras;
 
             LOGBUFFER_WRITE_AND_COUNT(VSST);
         }

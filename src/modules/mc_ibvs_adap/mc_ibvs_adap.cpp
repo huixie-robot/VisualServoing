@@ -617,7 +617,7 @@ MulticopterOPFIBVS::task_main()
 
             math::Vector<2> varpi_l2_1(xi_lu2*(k1_l+d1_l)*vartheta_l1(0) - delta_l1);
             math::Vector<2> varpi_l2_2(-xi_lphi2*(k1_l+d1_l)*vartheta_l1(0));
-            math::Vector<2> varpi_l2_3(xi_ltheta2*(k1_l+d1_l)*vartheta_l1(0));
+            math::Vector<2> varpi_l2_3(-xi_ltheta2*(k1_l+d1_l)*vartheta_l1(0));
 
             math::Vector<2> ell_l_1(-xi_ly2*(k1_l+d1_l) - (xi_ly1 - e_sl)*l2_l);
             math::Vector<2> ell_l_2(xi_lphi1*l2_l+S*El1*u_h);
@@ -665,22 +665,24 @@ MulticopterOPFIBVS::task_main()
                 math::Vector<3> vartheta_l1_update;
                 math::Vector<3> vartheta_l2_update;
                 //TODO check the bound
-                vartheta_l1_update(1) = gamma1_l*(delta_l1*varpi_l1_1);
-                vartheta_l1_update(2) = gamma1_l*(delta_l1*varpi_l1_2);
-                vartheta_l1_update(3) = gamma1_l*(delta_l1*varpi_l1_3);
+                vartheta_l1_update(0) = gamma1_l*(delta_l1*varpi_l1_1);
+                vartheta_l1_update(1) = gamma1_l*(delta_l1*varpi_l1_2);
+                vartheta_l1_update(2) = gamma1_l*(delta_l1*varpi_l1_3);
 
+                //TODO change the bound if necessary
                 projector(vartheta_l1_update,vartheta_l1,0.1f);
 
-                vartheta_l2_update(1) = gamma2_l*(delta_l2*varpi_l2_1);
-                vartheta_l2_update(2) = gamma2_l*(delta_l2*varpi_l2_2);
-                vartheta_l2_update(3) = gamma2_l*(delta_l2*varpi_l2_3);
+                vartheta_l2_update(0) = gamma2_l*(delta_l2*varpi_l2_1);
+                vartheta_l2_update(1) = gamma2_l*(delta_l2*varpi_l2_2);
+                vartheta_l2_update(2) = gamma2_l*(delta_l2*varpi_l2_3);
 
-                projector(vartheta_l2_update,vartheta_l2,0.1f);
+                //TODO change the bound if necessary
+                projector(vartheta_l2_update,vartheta_l2,40.0f);
 
 
 
-                vartheta_l1 = vartheta_l1_update*dt;
-                vartheta_l2 = vartheta_l2_update*dt;
+                vartheta_l1 += vartheta_l1_update*dt;
+                vartheta_l2 += vartheta_l2_update*dt;
             }
 
 
@@ -738,12 +740,12 @@ MulticopterOPFIBVS::task_main()
             {
                 //TODO check the bound
                 math::Vector<2> vartheta_h1_update(varpi_h1*(-_params.gamma1_h*e_sh));
-                projector(vartheta_h1_update,vartheta_h1,0.1f);
+                projector(vartheta_h1_update,vartheta_h1,0.6f);
                 math::Vector<2> vartheta_h2_update(varpi_h2*(_params.gamma2_h*delta_h2));
-                projector(vartheta_h2_update,vartheta_h2,0.1f);
+                projector(vartheta_h2_update,vartheta_h2,24.0f);
 
-                vartheta_h1 = vartheta_h1_update*dt;
-                vartheta_h2 = vartheta_h2_update*dt;
+                vartheta_h1 += vartheta_h1_update*dt;
+                vartheta_h2 += vartheta_h2_update*dt;
             }
 
             _att_sp_ibvs.valid += ((uint8_t)4);

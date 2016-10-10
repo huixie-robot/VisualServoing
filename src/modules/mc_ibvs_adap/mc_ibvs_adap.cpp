@@ -66,10 +66,30 @@
 
 
 static bool isValid(struct image_features_s *image_features, int n);
-static void projector(math::Vector<3> &input, const math::Vector<3> &estimate, float bound, float epsilon = 0.000001f);
-static void projector(math::Vector<2> &input, const math::Vector<2> &estimate, float bound, float epsilon = 0.000001f);
+//static void projector(math::Vector<3> &input, const math::Vector<3> &estimate, float bound, float epsilon = 0.000001f);
+//static void projector(math::Vector<2> &input, const math::Vector<2> &estimate, float bound, float epsilon = 0.000001f);
 
+template<unsigned N>
+void projector(math::Vector<N> &input, math::Vector<N> &estimate, float bound, float epsilon=0.000001f )
+{
 
+    if(epsilon<0.00001f)
+        epsilon = 0.00001f;
+    if(bound<0.001f)
+        bound = 0.001f;
+
+    float pl_num = estimate*estimate - bound*bound;
+    float pl_partial_times_mu = input*estimate;
+
+    if(pl_num>0&&pl_partial_times_mu>0){
+        float pl = pl_num/(epsilon*epsilon + 2*epsilon*bound);
+        math::Matrix<N,1> pl_partial;
+        math::Matrix<N,N> IdentityMatrix;
+        IdentityMatrix.identity();
+        pl_partial.set_col(0,estimate);
+        input = (IdentityMatrix - (pl_partial*pl_partial.transposed())*pl/(estimate*estimate))*input;
+    }
+}
 
 class MulticopterOPFIBVS
 {
@@ -670,14 +690,16 @@ MulticopterOPFIBVS::task_main()
                 vartheta_l1_update(2) = gamma1_l*(delta_l1*varpi_l1_3);
 
                 //TODO change the bound if necessary
-                projector(vartheta_l1_update,vartheta_l1,0.1f);
+//                projector<math::Vector<3>,3>(vartheta_l1_update,vartheta_l1,0.1f);
+                projector<3>(vartheta_l1_update,vartheta_l1,0.1f);
 
                 vartheta_l2_update(0) = gamma2_l*(delta_l2*varpi_l2_1);
                 vartheta_l2_update(1) = gamma2_l*(delta_l2*varpi_l2_2);
                 vartheta_l2_update(2) = gamma2_l*(delta_l2*varpi_l2_3);
 
                 //TODO change the bound if necessary
-                projector(vartheta_l2_update,vartheta_l2,40.0f);
+//                projector<math::Vector<3>,3>(vartheta_l2_update,vartheta_l2,40.0f);
+                 projector<3>(vartheta_l2_update,vartheta_l2,40.0f);
 
 
 
@@ -740,9 +762,11 @@ MulticopterOPFIBVS::task_main()
             {
                 //TODO check the bound
                 math::Vector<2> vartheta_h1_update(varpi_h1*(-_params.gamma1_h*e_sh));
-                projector(vartheta_h1_update,vartheta_h1,0.6f);
+//                projector<math::Vector<2>,2>(vartheta_h1_update,vartheta_h1,0.6f);
+                projector<2>(vartheta_h1_update,vartheta_h1,0.6f);
                 math::Vector<2> vartheta_h2_update(varpi_h2*(_params.gamma2_h*delta_h2));
-                projector(vartheta_h2_update,vartheta_h2,24.0f);
+//                projector<math::Vector<2>,2>(vartheta_h2_update,vartheta_h2,24.0f);
+                projector<2>(vartheta_h2_update,vartheta_h2,24.0f);
 
                 vartheta_h1 += vartheta_h1_update*dt;
                 vartheta_h2 += vartheta_h2_update*dt;
@@ -772,13 +796,6 @@ MulticopterOPFIBVS::task_main()
             //TODO how to wrap up yaw motion?
 //            _att_sp_ibvs.yaw_body += _params.k_psi*0.2*alpha*dt;
             _att_sp_ibvs.valid += ((uint8_t)8);
-//            if(t>t_print)
-//            {
-//                t_print += 3000000;
-//                warnx("alpha: %.4f, yaw_cur:%.4f, k_psi:%.4f, alpha:%.4f, yaw_ref: %.4f"
-//                  ,(double)alpha, (double)euler_angles(2),(double)_params.k_psi,(double)(_params.k_psi*alpha),
-//                      (double)_att_sp_ibvs.yaw_body);
-//            }
         }
         else
         {
@@ -895,43 +912,3 @@ bool isValid(struct image_features_s *image_features, int n)
     return false;
 }
 
-//TODO improve the function to constant
-void projector(math::Vector<3> &input, const math::Vector<3> &estimate, float bound, float epsilon){
-
-    if(epsilon<0.00001f)
-        epsilon = 0.00001f;
-    if(bound<0.001f)
-        bound = 0.001f;
-
-    float pl_num = estimate*estimate - bound*bound;
-    float pl_partial_times_mu = input*estimate;
-
-    if(pl_num>0&&pl_partial_times_mu>0){
-        float pl = pl_num/(epsilon*epsilon + 2*epsilon*bound);
-        math::Matrix<3,1> pl_partial;
-        math::Matrix<3,3> IdentityMatrix;
-        IdentityMatrix.identity();
-        pl_partial.set_col(0,estimate);
-        input = (IdentityMatrix - (pl_partial*pl_partial.transposed())*pl/(estimate*estimate))*input;
-    }
-}
-
-void projector(math::Vector<2> &input, const math::Vector<2> &estimate,float bound, float epsilon)
-{
-    if(epsilon < 0.00001f)
-        epsilon = 0.00001f;
-    if(bound < 0.001f)
-        bound = 0.001f;
-
-    float pl_num = estimate*estimate - bound*bound;
-    float pl_partial_times_mu = input*estimate;
-
-    if(pl_num>0&&pl_partial_times_mu>0){
-        float pl = pl_num/(epsilon*epsilon + 2*epsilon*bound);
-        math::Matrix<2,1> pl_partial;
-        math::Matrix<2,2> IdentityMatrix;
-        IdentityMatrix.identity();
-        pl_partial.set_col(0,estimate);
-        input = (IdentityMatrix - (pl_partial*pl_partial.transposed())*pl/(estimate*estimate))*input;
-    }
-}

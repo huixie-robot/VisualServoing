@@ -522,9 +522,13 @@ void PIXY_FEATURE::centeroid_feature_extraction(){
 //        _params.a_star;
 //        _img_feature.s[2] = sqrt(1.0/(miu02+miu20));
         _img_feature.s[2] = sqrt(_params.a_star/a);
+        _img_feature.s[2] = 0.8f;
         _img_feature.s[0] = x_g * _img_feature.s[2];
+        _img_feature.s[0] = 0.1f;
         _img_feature.s[1] = y_g * _img_feature.s[2];
+        _img_feature.s[1] = 0.1f;
         _img_feature.s[3] = 0.5f*atan2f(2*miu11,miu20-miu02);
+        _img_feature.s[3] = 0.0f;
 //        _img_feature.s[4] = a;
 
     _img_feature.s[4] = (float)_pixy_features.x_coord[0*MAX_POINTS_PER_SIGNATURE + 0];

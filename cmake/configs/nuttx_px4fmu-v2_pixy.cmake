@@ -116,10 +116,10 @@ set(config_module_list
 	#
 	# Pixy Modules
 	#
-#	modules/pixy
-#	modules/pixy_fe
+	modules/pixy
+	modules/pixy_fe
 #	modules/mc_ibvs_hg
-#	modules/mc_ibvs_adap
+	modules/mc_ibvs_adap
 	#
 	# Libraries
 	#

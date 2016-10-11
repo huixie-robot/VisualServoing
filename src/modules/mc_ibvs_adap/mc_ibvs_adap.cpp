@@ -528,7 +528,7 @@ MulticopterOPFIBVS::task_main()
     math::Vector<2> Lh;
     math::Vector<2> Bo(0.0f,1.0f);
     Ao.zero();
-    Ao(0,1) = 1.0f;
+    Ao(0,1) = -1.0f;
     Lh.zero();
 
     bool ibvs_on_prev = false;
@@ -536,6 +536,7 @@ MulticopterOPFIBVS::task_main()
     bool ibvs_int_reset_lateral = true;
 
     uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
+//    uint8_t counter = 0;
 
     while(!_task_should_exit){
         int poll_ret = poll(fds,(sizeof(fds) / sizeof(fds[0])),500);
@@ -701,8 +702,6 @@ MulticopterOPFIBVS::task_main()
 //                projector<math::Vector<3>,3>(vartheta_l2_update,vartheta_l2,40.0f);
                  projector<3>(vartheta_l2_update,vartheta_l2,40.0f);
 
-
-
                 vartheta_l1 += vartheta_l1_update*dt;
                 vartheta_l2 += vartheta_l2_update*dt;
             }
@@ -733,11 +732,13 @@ MulticopterOPFIBVS::task_main()
             Lh(0) = _params.l1_h;
             Lh(1) = -_params.l2_h;
             e_sh = _img_feature.s[2] - 1.0f;
+
             float tilde_xi_hy1 = xi_hy(0) - e_sh;
             math::Vector<2> varpi_h1((_params.k1_h+_params.d1_h)*e_sh -xi_hy(1),
                                      xi_hd(1));
             math::Vector<2> varpi_h2(vartheta_h1(0)*(_params.k1_h+_params.d1_h)*xi_hu(1)-e_sh,
                                      -vartheta_h1(0)*(_params.k1_h+_params.d1_h)*xi_hd(1));
+
             float delta_h2 = xi_hu(1) - vartheta_h1*varpi_h1;
             math::Vector<2> ell_h(-(_params.k1_h+_params.d1_h)*xi_hy(1)- _params.l2_h*tilde_xi_hy1,
                                   _params.l2_h*xi_hd(1)+1.0f);
@@ -747,10 +748,11 @@ MulticopterOPFIBVS::task_main()
                     -vartheta_h2*varpi_h2;
 
             // Observer Part
-            float u_h = _att_sp_ibvs.thrust + _params.thr_hover;
+            float u_h = _att_sp_ibvs.thrust;
             xi_hy += (Ao*xi_hy - Lh*tilde_xi_hy1)*dt;
             xi_hu += (Ao*xi_hu - Lh*xi_hu(0)+Bo*u_h)*dt;
             xi_hd += (Ao*xi_hd - Lh*xi_hd(0)+Bo)*dt;
+
             // Adaptive Law
             if(ibvs_int_reset_thrust)
             {
@@ -837,16 +839,16 @@ void MulticopterOPFIBVS::status()
 {
 //    warnx("IBVS Gain: IBVS_IZ_P %.4f",(double)_params.ibvs_kz);
     warnx("centeroid features valid : %d", _img_feature.valid);
-    warnx("\t s1 s2 s3 s4 s5: %2.3f %2.3f %2.3f %2.3f %2.3f",(double)_img_feature.s[0], (double)_img_feature.s[1],
+    warnx("\t s1 s2 s3 s4 s5: %.3f %.3f %.3f %.3f %.3f",(double)_img_feature.s[0], (double)_img_feature.s[1],
             (double)_img_feature.s[2], (double)_img_feature.s[3], (double)_img_feature.s[4]);
-    warnx("Reference roll pitch yaw thrust: %8.4f %8.4f %8.4f %8.4f",(double)_att_sp_ibvs.roll_body,
+    warnx("Reference roll pitch yaw thrust: %.4f %.4f %.4f %.4f",(double)_att_sp_ibvs.roll_body,
           (double)_att_sp_ibvs.pitch_body,(double)_att_sp_ibvs.yaw_body, (double)_att_sp_ibvs.thrust);
-//    warnx("e_sh:%.4f, hat_esh:%.4f, tilde_esh:%.4f, hat_vsh:%.4f, C_ghat_update: %.4f"
-//          , (double)e_sh, (double)hat_e_sh, (double)tilde_xi_hy1, (double)hat_v_sh, (double)C_g_hat_update);
-//    warnx("e_sl1:%.4f, hat_esl1:%.4f, tilde_esl1:%.4f, hat_vsl1:%.4f, eta_1_update: %.4f"
-//          , (double)e_sl1, (double)hat_e_sl1, (double)tilde_e_sl1, (double)hat_v_sl1, (double)eta_e1_update);
-//    warnx("e_sl2:%.4f, hat_esl2:%.4f, tilde_esl2:%.4f, hat_vsl2:%.4f, eta_2_update: %.4f"
-//          , (double)e_sl2, (double)hat_e_sl2, (double)tilde_e_sl2, (double)hat_v_sl2, (double)eta_e2_update);
+
+    warnx("xi_hy(0):%.3f, xi_hy(1):%.3f",(double)xi_hy(0),(double)xi_hy(1));
+    warnx("xi_hu(0):%.3f, xi_hu(1):%.3f",(double)xi_hu(0),(double)xi_hu(1));
+    warnx("xi_hd(0):%.3f, xi_hd(1):%.3f",(double)xi_hd(0),(double)xi_hd(1));
+    warnx("vartheta_h1: %.3f, %.3f",(double)vartheta_h1(0),(double)vartheta_h1(1));
+    warnx("vartheta_h2: %.3f, %.3f",(double)vartheta_h2(0),(double)vartheta_h2(1));
 }
 
 /**

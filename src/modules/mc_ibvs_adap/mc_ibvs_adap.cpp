@@ -70,7 +70,7 @@ static bool isValid(struct image_features_s *image_features, int n);
 //static void projector(math::Vector<2> &input, const math::Vector<2> &estimate, float bound, float epsilon = 0.000001f);
 
 template<unsigned N>
-void projector(math::Vector<N> &input, math::Vector<N> &estimate, float bound, float epsilon=0.000001f )
+void projector(math::Vector<N> &input, math::Vector<N> &estimate, float bound, float epsilon=0.001f )
 {
 
     if(epsilon<0.00001f)
@@ -535,7 +535,7 @@ MulticopterOPFIBVS::task_main()
     bool ibvs_int_reset_thrust = true;
     bool ibvs_int_reset_lateral = true;
 
-    uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
+//    uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
 //    uint8_t counter = 0;
 
     while(!_task_should_exit){
@@ -667,13 +667,14 @@ MulticopterOPFIBVS::task_main()
 
 
             //Observer Part
-            math::Vector<2> eta_m1(euler_angles(1),euler_angles(2));
+            math::Vector<2> eta_m1(euler_angles(0),euler_angles(1));
             math::Matrix<4,4> A_CL;
             A_CL = A_L - L_L*C_L - Delta_S2*psidot;
             xi_ly       += (A_CL*xi_ly + L_L*e_sl)*dt;
             xi_lu       += (A_CL*xi_lu + B_L*u_h*S*eta_m1)*dt;
             xi_lphi     += (A_CL*xi_lphi + B_L*u_h*S*El1)*dt;
             xi_ltheta   += (A_CL*xi_ltheta + B_L*u_h*S*El2)*dt;
+
             //Adaptive law
             if(ibvs_int_reset_lateral)
             {
@@ -805,12 +806,6 @@ MulticopterOPFIBVS::task_main()
         }
 
 
-
-        if (prev_nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
-        {
-//            warnx("here");
-        }
-
         if(_att_sp_ibvs_pub_fd != nullptr){
             orb_publish(ORB_ID(vehicle_image_attitude_setpoint),_att_sp_ibvs_pub_fd, &_att_sp_ibvs);
         }
@@ -826,7 +821,7 @@ MulticopterOPFIBVS::task_main()
             orb_advertise(ORB_ID(ibvs_state),&_ibvs_state);
         }
 //        perf_count(_loop_perf);
-        prev_nav_state = _vehicle_status.nav_state;
+//        prev_nav_state = _vehicle_status.nav_state;
     }
 
 
@@ -837,18 +832,21 @@ MulticopterOPFIBVS::task_main()
 
 void MulticopterOPFIBVS::status()
 {
-//    warnx("IBVS Gain: IBVS_IZ_P %.4f",(double)_params.ibvs_kz);
+    warnx(" ");
     warnx("centeroid features valid : %d", _img_feature.valid);
     warnx("\t s1 s2 s3 s4 s5: %.3f %.3f %.3f %.3f %.3f",(double)_img_feature.s[0], (double)_img_feature.s[1],
             (double)_img_feature.s[2], (double)_img_feature.s[3], (double)_img_feature.s[4]);
     warnx("Reference roll pitch yaw thrust: %.4f %.4f %.4f %.4f",(double)_att_sp_ibvs.roll_body,
           (double)_att_sp_ibvs.pitch_body,(double)_att_sp_ibvs.yaw_body, (double)_att_sp_ibvs.thrust);
-
-    warnx("xi_hy(0):%.3f, xi_hy(1):%.3f",(double)xi_hy(0),(double)xi_hy(1));
-    warnx("xi_hu(0):%.3f, xi_hu(1):%.3f",(double)xi_hu(0),(double)xi_hu(1));
-    warnx("xi_hd(0):%.3f, xi_hd(1):%.3f",(double)xi_hd(0),(double)xi_hd(1));
-    warnx("vartheta_h1: %.3f, %.3f",(double)vartheta_h1(0),(double)vartheta_h1(1));
-    warnx("vartheta_h2: %.3f, %.3f",(double)vartheta_h2(0),(double)vartheta_h2(1));
+//    warnx("xi_hy(0):%.3f, xi_hy(1):%.3f",(double)xi_hy(0),(double)xi_hy(1));
+//    warnx("xi_hu(0):%.3f, xi_hu(1):%.3f",(double)xi_hu(0),(double)xi_hu(1));
+//    warnx("xi_hd(0):%.3f, xi_hd(1):%.3f",(double)xi_hd(0),(double)xi_hd(1));
+//    warnx("vartheta_h1: %.3f, %.3f",(double)vartheta_h1(0),(double)vartheta_h1(1));
+//    warnx("vartheta_h2: %.3f, %.3f",(double)vartheta_h2(0),(double)vartheta_h2(1));
+    warnx("xi_ly: %3.4f, %3.4f, %3.4f, %3.4f",(double)xi_ly(0),(double)xi_ly(1),(double)xi_ly(2),(double)xi_ly(3));
+    warnx("xi_lu: %3.4f, %3.4f, %3.4f, %3.4f",(double)xi_lu(0),(double)xi_lu(1),(double)xi_lu(2),(double)xi_lu(3));
+    warnx("xi_lphi: %3.4f, %3.4f, %3.4f, %3.4f",(double)xi_lphi(0),(double)xi_lphi(1),(double)xi_lphi(2),(double)xi_lphi(3));
+    warnx("xi_ltheta: %3.4f, %3.4f, %3.4f, %3.4f",(double)xi_ltheta(0),(double)xi_ltheta(1),(double)xi_ltheta(2),(double)xi_ltheta(3));
 }
 
 /**
@@ -881,6 +879,7 @@ int mc_ibvs_adap_main(int argc, char *argv[])
                 }
         exit(0);
     }
+
 
     if (!strcmp(argv[1], "stop")) {
         if (ibvs::g_control == nullptr)

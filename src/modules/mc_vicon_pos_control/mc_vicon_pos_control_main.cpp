@@ -1108,6 +1108,7 @@ void ViconControl::task_main(){
 
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL)
             {
+//                warnx("lateral automatic control");
                 if(prev_nav_state!=vehicle_status_s::NAVIGATION_STATE_ALTCTL)
                 {
                     _att_sp.yaw_body = _yaw;
@@ -1125,6 +1126,7 @@ void ViconControl::task_main(){
 
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)
             {
+//                warnx("3D automatic control");
                 if(prev_nav_state !=vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)
                 {
                     _pos_sp(2) = _pos(2);
@@ -1155,6 +1157,7 @@ void ViconControl::task_main(){
 
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
             {
+//                warnx("ibvs is on");
                 uint8_t enable = _params.ibvs_enable;
                 bool roll_enabled = (enable & (uint8_t)1);
                 bool pitch_enabled = (enable & (uint8_t)2);
@@ -1170,7 +1173,6 @@ void ViconControl::task_main(){
                 float tilt_max = _params.tilt_max_air;
                 float thr_max = _params.thr_max;
 
-//                warnx("After: Enable %d, IMG_Valid %d", enable, _img_att_sp.valid);
 
                 if(roll_enabled && img_roll_valid)
                 {
@@ -1239,6 +1241,7 @@ void ViconControl::task_main(){
 
         /* generate attitude setpoint from manual controls */
         if (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_MANUAL) {
+//            warnx("manual mode");
             manual(reset_yaw_sp,dt);
         } else {
             //TODO check whether need to reset yaw sp

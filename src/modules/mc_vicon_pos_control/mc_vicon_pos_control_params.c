@@ -28,7 +28,7 @@ PARAM_DEFINE_FLOAT(VCN_MANTHR_MIN, 0.08f);
  * @increment 0.01
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_MANTHR_MAX, 0.9f);
+PARAM_DEFINE_FLOAT(VCN_MANTHR_MAX, 0.8f);
 
 
 /**
@@ -79,7 +79,7 @@ PARAM_DEFINE_FLOAT(VCN_THR_HOVER, 0.5f);
  * @increment 0.01
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_THR_MAX, 0.9f);
+PARAM_DEFINE_FLOAT(VCN_THR_MAX, 0.6f);
 
 /**
  * Proportional gain for vertical position error
@@ -89,7 +89,7 @@ PARAM_DEFINE_FLOAT(VCN_THR_MAX, 0.9f);
  * @decimal 2
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_Z_P, 1.0f);
+PARAM_DEFINE_FLOAT(VCN_Z_P, 0.1f);
 
 /**
  * Proportional gain for vertical velocity error
@@ -99,7 +99,7 @@ PARAM_DEFINE_FLOAT(VCN_Z_P, 1.0f);
  * @decimal 2
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_Z_VEL_P, 0.2f);
+PARAM_DEFINE_FLOAT(VCN_Z_VEL_P, 0.1f);
 
 /**
  * Integral gain for vertical velocity error
@@ -117,11 +117,11 @@ PARAM_DEFINE_FLOAT(VCN_Z_VEL_I, 0.02f);
  * Differential gain for vertical velocity error
  *
  * @min 0.0
- * @max 0.1
+ * @max 0.2
  * @decimal 3
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_Z_VEL_D, 0.0f);
+PARAM_DEFINE_FLOAT(VCN_Z_VEL_D, 0.2f);
 
 /**
  * Maximum vertical ascent velocity
@@ -179,7 +179,7 @@ PARAM_DEFINE_FLOAT(VCN_Z_FF, 0.5f);
  * @decimal 2
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_XY_P, 1.25f);
+PARAM_DEFINE_FLOAT(VCN_XY_P, 0.11f);
 
 /**
  * Proportional gain for horizontal velocity error
@@ -189,7 +189,7 @@ PARAM_DEFINE_FLOAT(VCN_XY_P, 1.25f);
  * @decimal 2
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_XY_VEL_P, 0.09f);
+PARAM_DEFINE_FLOAT(VCN_XY_VEL_P, 0.12f);
 
 /**
  * Integral gain for horizontal velocity error
@@ -201,17 +201,17 @@ PARAM_DEFINE_FLOAT(VCN_XY_VEL_P, 0.09f);
  * @decimal 3
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_XY_VEL_I, 0.02f);
+PARAM_DEFINE_FLOAT(VCN_XY_VEL_I, 0.015f);
 
 /**
  * Differential gain for horizontal velocity error. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
  * @min 0.005
- * @max 0.1
+ * @max 0.3
  * @decimal 3
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_XY_VEL_D, 0.01f);
+PARAM_DEFINE_FLOAT(VCN_XY_VEL_D, 0.18f);
 
 
 /**
@@ -261,7 +261,7 @@ PARAM_DEFINE_FLOAT(VCN_VELD_LP, 5.0f);
  * @decimal 1
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_MAN_R_MAX, 35.0f);
+PARAM_DEFINE_FLOAT(VCN_MAN_R_MAX, 20.0f);
 
 /**
  * Max manual pitch
@@ -272,7 +272,7 @@ PARAM_DEFINE_FLOAT(VCN_MAN_R_MAX, 35.0f);
  * @decimal 1
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VCN_MAN_P_MAX, 35.0f);
+PARAM_DEFINE_FLOAT(VCN_MAN_P_MAX, 20.0f);
 
 /**
  * Max manual yaw rate

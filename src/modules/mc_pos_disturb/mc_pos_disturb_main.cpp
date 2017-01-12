@@ -33,6 +33,7 @@
 
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_image_attitude_setpoint.h>
+#include <uORB/topics/ibvs_state.h>
 
 /**
  * Deamon management function.
@@ -65,7 +66,6 @@ private:
     int	_manual_sub;
     int _control_mode_sub;
     int _vehicle_land_detected_sub;
-    int _vehicle_img_att_sp_sub;
 
     /* Subscribe structures */
     struct vehicle_status_s _vehicle_status;
@@ -75,8 +75,6 @@ private:
     struct manual_control_setpoint_s _manual;
     struct vehicle_control_mode_s _control_mode;
     struct vehicle_land_detected_s _vehicle_land_detected;
-    struct vehicle_image_attitude_setpoint_s _img_att_sp;
-
 
 
     void poll_subscriptions();
@@ -111,6 +109,14 @@ private:
         param_t tilt_max_air;
 
         param_t ibvs_enable;
+
+        param_t K1_ne;
+        param_t K2_ne;
+        param_t epsilon1_ne;
+        param_t epsilon2_ne;
+        param_t L1_ne;
+        param_t L2_ne;
+
     } _params_handles;
 
     struct{
@@ -136,19 +142,30 @@ private:
         float acc_hor_max;
         float tilt_max_air;
         uint8_t ibvs_enable;
+
+        float K1_ne;
+        float K2_ne;
+        float epsilon1_ne;
+        float epsilon2_ne;
+        float L1_ne;
+        float L2_ne;
     } _params;
 
     int parameters_update(bool force);
 
     /* publication topics */
-    orb_advert_t _mavlink_log_pub;
-    orb_advert_t _att_sp_pub;
-    orb_advert_t _local_pos_sp_pub;
+    orb_advert_t    _att_sp_pub;
+    orb_advert_t    _local_pos_sp_pub;
+    orb_advert_t    _att_sp_ibvs_pub_fd;
+    orb_advert_t    _ibvs_state_pub_fd;
+
 
 
     /*Publish structure*/
     struct vehicle_attitude_setpoint_s _att_sp;
     struct vehicle_local_position_setpoint_s _local_pos_sp;
+    struct vehicle_image_attitude_setpoint_s _img_att_sp;
+    struct ibvs_state_s _ibvs_state;
 
 
     control::BlockParamFloat _manual_thr_min;
@@ -167,19 +184,35 @@ private:
     math::Vector<3> _pos;
     math::Vector<3> _pos_sp;
     math::Vector<3> _vel;
-    math::Vector<3> _vel_prev;
     math::Vector<3> _vel_sp;
     math::Vector<3> _acc_sp;
     math::Vector<3> _vel_sp_prev;
-    math::Vector<3> _vel_ff;
 //    math::Vector<3> _vel_err_d;
     math::Vector<3> _pos_err_d;
     math::Vector<3> _thrust_int;
 
+    float hatd_n;
+    float z2_n;
+    float rhos21_n;
+    float rhos22_n;
+    float Isd2_n;
+
+    float hatd_e;
+    float z2_e;
+    float rhos21_e;
+    float rhos22_e;
+    float Isd2_e;
+
+//    float hatd_d;
+//    float z2_d;
+//    float rhos21_d;
+//    float rhos22_d;
+//    float Isd2_d;
+
 
     float _yaw;
     void automatic_3(float dt, bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
-    void automatic_disturb_rej(float dt);
+    void automatic_disturb_rej(float dt,bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
     float sign_f(float var);
 
     static float throttle_curve(float ctl, float ctr);
@@ -206,7 +239,6 @@ ViconPosControl::ViconPosControl():
     _manual_sub(-1),
     _control_mode_sub(-1),
     _vehicle_land_detected_sub(-1),
-    _vehicle_img_att_sp_sub(-1),
     /*subscribed structure*/
     _vehicle_status{},
     _local_pos{},
@@ -215,24 +247,44 @@ ViconPosControl::ViconPosControl():
     _manual{},
     _control_mode{},
     _vehicle_land_detected{},
-    _img_att_sp{},
     /*publication*/
-    _mavlink_log_pub(nullptr),
     _att_sp_pub(nullptr),
     _local_pos_sp_pub(nullptr),
+    _att_sp_ibvs_pub_fd(nullptr),
+    _ibvs_state_pub_fd(nullptr),
     /*Publish structure*/
     _att_sp{},
     _local_pos_sp{},
+    _img_att_sp{},
+    _ibvs_state{},
 
     _manual_thr_min(this, "MANTHR_MIN"),
     _manual_thr_max(this, "MANTHR_MAX"),
     _vel_x_deriv(this, "VELD"),
     _vel_y_deriv(this, "VELD"),
     _vel_z_deriv(this, "VELD"),
-
     _pos_x_deriv(this, "VELD"),
     _pos_y_deriv(this, "VELD"),
     _pos_z_deriv(this, "VELD"),
+
+    hatd_n(0.0f),
+    z2_n(0.0f),
+    rhos21_n(0.0f),
+    rhos22_n(0.0f),
+    Isd2_n(0.0f),
+
+    hatd_e(0.0f),
+    z2_e(0.0f),
+    rhos21_e(0.0f),
+    rhos22_e(0.0f),
+    Isd2_e(0.0f),
+
+//    hatd_d(0.0f),
+//    z2_d(0.0f),
+//    rhos21_d(0.0f),
+//    rhos22_d(0.0f),
+//    Isd2_d(0.0f),
+
     _yaw(0.0f)
 {
     // Make the quaternion valid for control state
@@ -250,11 +302,9 @@ ViconPosControl::ViconPosControl():
     _pos.zero();
     _pos_sp.zero();
     _vel.zero();
-    _vel_prev.zero();
     _vel_sp.zero();
     _acc_sp.zero();
     _vel_sp_prev.zero();
-    _vel_ff.zero();
 //    _vel_err_d.zero();
     _pos_err_d.zero();
     _thrust_int.zero();
@@ -289,6 +339,12 @@ ViconPosControl::ViconPosControl():
     _params_handles.tilt_max_air = param_find("VCN_TILTMAX_AIR");
     _params_handles.ibvs_enable = param_find("IBVS_ENABLE");
 
+    _params_handles.epsilon1_ne = param_find("MCD_NE_EPS1");
+    _params_handles.epsilon2_ne = param_find("MCD_NE_EPS2");
+    _params_handles.L1_ne = param_find("MCD_NE_L1");
+    _params_handles.L2_ne = param_find("MCD_NE_L2");
+    _params_handles.K1_ne = param_find("MCD_NE_K1");
+    _params_handles.K2_ne = param_find("MCD_NE_K2");
 
     /* fetch initial parameter values */
     parameters_update(true);
@@ -381,10 +437,6 @@ void ViconPosControl::poll_subscriptions()
         orb_copy(ORB_ID(vehicle_land_detected), _vehicle_land_detected_sub, &_vehicle_land_detected);
     }
 
-    orb_check(_vehicle_img_att_sp_sub, &updated);
-    if (updated) {
-        orb_copy(ORB_ID(vehicle_image_attitude_setpoint),_vehicle_img_att_sp_sub,&_img_att_sp);
-    }
 }
 
 int ViconPosControl::parameters_update(bool force)
@@ -457,9 +509,12 @@ int ViconPosControl::parameters_update(bool force)
         _params.tilt_max_air = math::radians(_params.tilt_max_air);
 
         param_get(_params_handles.ibvs_enable,&_params.ibvs_enable);
-        warnx("param updated: _params.ibvs_enable: %d", _params.ibvs_enable);
+        param_get(_params_handles.epsilon1_ne,&_params.epsilon1_ne);
+        param_get(_params_handles.epsilon2_ne,&_params.epsilon2_ne);
+        param_get(_params_handles.L1_ne,&_params.L1_ne);
+        param_get(_params_handles.L2_ne,&_params.L2_ne);
+        param_get(_params_handles.K1_ne,&_params.K1_ne);
     }
-
     return OK;
 }
 
@@ -576,21 +631,28 @@ void ViconPosControl::automatic_3(float dt,bool &reset_int_xy, bool &reset_int_z
     _att_sp.thrust = thrust_sp;
 }
 
-void ViconPosControl::automatic_disturb_rej(float dt){
+void ViconPosControl::automatic_disturb_rej(float dt, bool &reset_int_xy, bool &reset_int_z, bool &reeset_int_z_manual){
 
     //TODO add those constant to parameters
-    const float K1_n = 0.1f;
-    const float K2_n = 0.1f;
-    const float epsilon1_n = 0.1f;
-    const float epsilon2_n = 0.1f;
-    const float L1_n = 0.1f;
-    const float L2_n = 0.1f;
-    //TODO add state to the class
-    float hatd_n = 0.0f;
-    float z2_n = 0.0f;
-    float rhos21_n = 0.0f;
-    float rhos22_n = 0.0f;
-    float Isd2_n = 0.0f;
+    const float K1_n = _params.K1_ne;
+    const float K2_n = _params.K2_ne;
+    const float epsilon1_n = _params.epsilon1_ne;
+    const float epsilon2_n = _params.epsilon2_ne;
+    const float L1_n = _params.L1_ne;
+    const float L2_n = _params.L2_ne;
+
+    const float K1_e = _params.K1_ne;
+    const float K2_e = _params.K2_ne;
+    const float epsilon1_e = _params.epsilon1_ne;
+    const float epsilon2_e = _params.epsilon2_ne;
+    const float L1_e = _params.L1_ne;
+    const float L2_e = _params.L2_ne;
+
+    /* limit thrust vector and check for saturation */
+    bool saturation_x = false;
+    bool saturation_y = false;
+
+    float tilt_max = _params.tilt_max_air;
 
 
     float hatd_n_dot;
@@ -599,42 +661,152 @@ void ViconPosControl::automatic_disturb_rej(float dt){
     float rhos22_n_dot;
     float Isd2_n_dot;
 
+    float hatd_e_dot;
+    float z2_e_dot;
+    float rhos21_e_dot;
+    float rhos22_e_dot;
+    float Isd2_e_dot;
+
+    if (reset_int_xy) {
+        reset_int_xy = false;
+        z2_n = 0.0f;
+        rhos21_n = 0.0f;
+        rhos22_n = 0.0f;
+        hatd_n = 0.0f;
+        Isd2_n = 0.0f;
+        z2_e = 0.0f;
+        rhos21_e = 0.0f;
+        rhos22_e = 0.0f;
+        hatd_e = 0.0f;
+        Isd2_e = 0.0f;
+    }
+
     math::Vector<3> force_nav;
+    math::Vector<3> force_body;
 
+    // North or X axis
 
-    float e1_n = _pos(0) - _pos_sp(0);
-//    float e1_e = _pos(1) - _pos_sp(1);
-//    float e1_d = _pos(2) - _pos_sp(2);
-
+    float e1_n          = _pos(0) - _pos_sp(0);
     float eta2c_n       = _vel_sp(0) - K1_n*e1_n;
     float e2_n          = _vel(0) -  eta2c_n;
     float eta2cdot_n    = _acc_sp(0) - K1_n*(e2_n + eta2c_n - _vel_sp(0));
+    force_nav(0)        = -K2_n*e2_n - hatd_n - e1_n + eta2cdot_n;
 
-    force_nav(0) = -K2_n*e2_n - hatd_n - e1_n + eta2cdot_n;
+    // East or Y axis
+    float e1_e          = _pos(1) - _pos_sp(1);
+    float eta2c_e       = _vel_sp(1) - K1_e*e1_e;
+    float e2_e          = _vel(1) - eta2c_e;
+    float eta2cdot_e    = _acc_sp(1) - K1_e*(e2_e + eta2c_e - _vel_sp(1));
+    force_nav(1)        = - K2_e*e2_e - hatd_e - e1_e + eta2cdot_e;
 
+    float roll_sp, pitch_sp;
+//    float thrust_sp;
+    force_body(0) = cosf(-_yaw)*force_nav(0) - sinf(-_yaw)*force_nav(1);
+    force_body(1) = sinf(-_yaw)*force_nav(0) + cosf(-_yaw)*force_nav(1);
+    pitch_sp = - force_body(0);
+    roll_sp = force_body(1);
+//    thrust_sp = - force_body(2);
 
-    float s2_n = z2_n - _vel(0);
+    /*Avoid wind-up, thus stop integration for the disturbance term*/
+    if(pitch_sp>tilt_max)
+    {
+        pitch_sp = tilt_max;
+        saturation_x = true;
+    }
+    else if(pitch_sp < - tilt_max)
+    {
+        pitch_sp = - tilt_max;
+        saturation_x = true;
+    }
 
-    z2_n_dot = force_nav(0)+hatd_n;
+    if(roll_sp>tilt_max)
+    {
+        roll_sp = tilt_max;
+        saturation_y = true;
+    }
+    else if(roll_sp < - tilt_max)
+    {
+        roll_sp = - tilt_max;
+        saturation_y = true;
+    }
+//    if(thrust_sp<thr_min)
+//    {
+//        thrust_sp = thr_min;
+//        saturation_z = true;
+//    }
+//    if(thrust_sp>thr_max)
+//    {
+//        thrust_sp = thr_max;
+//        saturation_z =  true;
+//    }
 
-    float rhos21_minus_s2 = rhos21_n - s2_n;
-    float sqrt_temp = sqrt(fabs(rhos21_minus_s2));
-//    rhos21_n_dot = rhos22_n - epsilon1_n*sqrt(fabs(rhos21_minus_s2))*sign_f(rhos21_minus_s2);
-    rhos21_n_dot = rhos22_n - epsilon1_n*sqrt_temp*sign_f(rhos21_minus_s2);
-    rhos22_n_dot = -epsilon2_n*sign_f(rhos21_minus_s2);
-    float sd2_n = s2_n + rhos21_n;
-    sqrt_temp = sqrt(fabs(sd2_n));
-    hatd_n_dot = -rhos21_n_dot - L1_n*sqrt_temp*sign_f(sd2_n) - L2_n*Isd2_n;
-    Isd2_n_dot = sign_f(sd2_n);
-
+    /* update the state */
+    // North or X direction
+    float s2_n          = z2_n - _vel(0);
+    z2_n_dot            = force_nav(0)+hatd_n;
+    float rhos21_minus_s2_n = rhos21_n - s2_n;
+    float sqrt_temp_n     = sqrt(fabs(rhos21_minus_s2_n));
+    rhos21_n_dot        = rhos22_n - epsilon1_n*sqrt_temp_n*sign_f(rhos21_minus_s2_n);
+    rhos22_n_dot        = -epsilon2_n*sign_f(rhos21_minus_s2_n);
+    float sd2_n         = s2_n + rhos21_n_dot;
+    sqrt_temp_n         = sqrt(fabs(sd2_n));
+    hatd_n_dot          = -rhos21_n_dot - L1_n*sqrt_temp_n*sign_f(sd2_n) - L2_n*Isd2_n;
+    Isd2_n_dot          = sign_f(sd2_n);
     z2_n += z2_n_dot*dt;
     rhos21_n += rhos21_n_dot*dt;
     rhos22_n += rhos22_n_dot*dt;
-    hatd_n += hatd_n_dot*dt;
-    Isd2_n += Isd2_n_dot*dt;
+    if(!saturation_x){
+        hatd_n += hatd_n_dot*dt;
+        Isd2_n += Isd2_n_dot*dt;
+    }
+    // East or Y axis
+    float s2_e          = z2_e - _vel(1);
+    z2_e_dot            = force_nav(1) + hatd_e;
+    float rhos21_minus_s2_e   = rhos21_e - s2_e;
+    float sqrt_temp_e         = sqrt(fabs(rhos21_minus_s2_e));
+    rhos21_e_dot        = rhos22_e - epsilon1_e*sqrt_temp_e*sign_f(rhos21_minus_s2_e);
+    rhos22_e_dot        = -epsilon2_e*sign_f(rhos21_minus_s2_e);
+    float sd2_e         = s2_e + rhos21_e_dot;
+    sqrt_temp_e         = sqrt(fabs(sd2_e));
+    hatd_e_dot          = -rhos21_e_dot - L1_e*sqrt_temp_e*sign_f(sd2_e) - L2_e*Isd2_e;
+    Isd2_e_dot          = sign_f(sd2_e);
+    z2_e += z2_e_dot*dt;
+    rhos21_e += rhos21_e_dot*dt;
+    rhos22_e += rhos22_e_dot*dt;
+    if(!saturation_y){
+        hatd_e += hatd_e_dot*dt;
+        Isd2_e += Isd2_e_dot*dt;
+    }
 
-    _att_sp.roll_body = force_nav(0);
+    _ibvs_state.hat_e_sh = rhos21_n;
+    _ibvs_state.hat_v_sh = rhos21_n_dot;
+    _ibvs_state.c_g_hat = hatd_n;
 
+    _ibvs_state.hat_e_sl1 = rhos21_e;
+    _ibvs_state.hat_v_sl1 = rhos21_e_dot;
+    _ibvs_state.eta_e1_hat = hatd_e;
+
+    _img_att_sp.roll_body = roll_sp;
+    _img_att_sp.pitch_body = pitch_sp;
+    _img_att_sp.yaw_body = 0.0f;
+    _img_att_sp.thrust = 0.0f;
+//    _att_sp.yaw_body = _wrap_pi(_att_sp.yaw_body);
+//    _att_sp.thrust = thrust_sp;
+
+    if(_att_sp_ibvs_pub_fd != nullptr){
+        orb_publish(ORB_ID(vehicle_image_attitude_setpoint),_att_sp_ibvs_pub_fd, &_img_att_sp);
+    }
+    else{
+        orb_advertise(ORB_ID(vehicle_image_attitude_setpoint),&_img_att_sp);
+    }
+
+    if(_ibvs_state_pub_fd != nullptr)
+    {
+        orb_publish(ORB_ID(ibvs_state),_ibvs_state_pub_fd, &_ibvs_state);
+    }
+    else{
+        orb_advertise(ORB_ID(ibvs_state),&_ibvs_state);
+    }
 }
 
 float ViconPosControl::sign_f(float var){
@@ -715,7 +887,6 @@ void ViconPosControl::task_main(){
     _manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
     _control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
     _vehicle_land_detected_sub = orb_subscribe(ORB_ID(vehicle_land_detected));
-    _vehicle_img_att_sp_sub = orb_subscribe(ORB_ID(vehicle_image_attitude_setpoint));
 
     parameters_update(true);
     /* initialize values of critical structs until first regular update */
@@ -852,6 +1023,7 @@ void ViconPosControl::task_main(){
             }
 
             automatic_3(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
+            automatic_disturb_rej(dt,reset_int_xy,reset_int_z,reset_int_z_manual);
 
             if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL)
             {
@@ -863,8 +1035,10 @@ void ViconPosControl::task_main(){
                 }
             }
 
-            if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER)
-                automatic_disturb_rej(dt);
+            if(_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER){
+                _att_sp.roll_body = _img_att_sp.roll_body;
+                _att_sp.pitch_body = _img_att_sp.pitch_body;
+            }
 
             _att_sp.timestamp = hrt_absolute_time();
             math::Matrix<3,3> R_sp;
@@ -905,11 +1079,6 @@ void ViconPosControl::task_main(){
             //TODO check whether need to reset yaw sp
             reset_yaw_sp = true;
         }
-
-
-
-        /* update previous velocity for velocity controller D part */
-        _vel_prev = _vel;
 
         if(_att_sp_pub != nullptr){
             orb_publish(ORB_ID(vehicle_attitude_setpoint), _att_sp_pub, &_att_sp);

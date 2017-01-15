@@ -162,11 +162,11 @@ int px4_daemon_thread_main(int argc, char *argv[])
 	
 	
 	while (!thread_should_exit) {
-		float tmp;
-		tmp = sinf(_mocap.timestamp_boot/1000000.0f);
+		float time;
 		_mocap.timestamp_boot = hrt_absolute_time();
-		_mocap.x = 1.0f ;
-		_mocap.y = 1.0f + tmp*0.0f;
+		time = _mocap.timestamp_boot*0.000001f;
+		_mocap.x = sinf(time);
+		_mocap.y = cosf(time);
 		_mocap.z = -1.5f;
 		
 		orb_check(_home_pos_sub, &updated);

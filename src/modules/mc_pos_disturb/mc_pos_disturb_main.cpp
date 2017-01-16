@@ -215,6 +215,8 @@ private:
 //    float Isd2_d;
 
 
+    float _roll;
+    float _pitch;
     float _yaw;
     void automatic_3(float dt, bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
     void automatic_disturb_rej(float dt, bool &reset_int_xy, bool &reset_int_z, bool &reset_int_z_manual);
@@ -290,6 +292,8 @@ ViconPosControl::ViconPosControl():
 //    rhos22_d(0.0f),
 //    Isd2_d(0.0f),
 
+    _roll(0.0f),
+    _pitch(0.0f),
     _yaw(0.0f)
 {
     // Make the quaternion valid for control state
@@ -427,6 +431,8 @@ void ViconPosControl::poll_subscriptions()
         _R = q_att.to_dcm();
         math::Vector<3> euler_angles;
         euler_angles = _R.to_euler();
+        _roll = euler_angles(0);
+        _pitch = euler_angles(1);
         _yaw = euler_angles(2);
     }
 
@@ -562,9 +568,9 @@ void ViconPosControl::automatic_3(float dt,bool &reset_int_xy, bool &reset_int_z
     math::Vector<3> force_nav;
     math::Vector<3> force_body;
 
-    force_nav = pos_err.emult(_params.vel_p) + _pos_err_d.emult(_params.vel_d)+_thrust_int;
-//    math::Vector<3> vel_err = _vel_sp - _vel;
-//    force_nav = pos_err.emult(_params.vel_p) + vel_err.emult(_params.vel_d) + _thrust_int;
+//    force_nav = pos_err.emult(_params.vel_p) + _pos_err_d.emult(_params.vel_d)+_thrust_int;
+    math::Vector<3> vel_err = _vel_sp - _vel;
+    force_nav = pos_err.emult(_params.vel_p) + vel_err.emult(_params.vel_d) + _thrust_int;
 
     float roll_sp, pitch_sp, thrust_sp;
 
@@ -696,19 +702,18 @@ void ViconPosControl::automatic_disturb_rej(float dt, bool &reset_int_xy, bool &
     math::Vector<3> force_body;
 
     // North or X axis
-
     float e1_n          = _pos(0) - _pos_sp(0);
     float eta2c_n       = _vel_sp(0) - K1_n*e1_n;
     float e2_n          = _vel(0) -  eta2c_n;
     float eta2cdot_n    = _acc_sp(0) - K1_n*(e2_n + eta2c_n - _vel_sp(0));
-    force_nav(0)        = -K2_n*e2_n - hatd_n - e1_n + eta2cdot_n;
+    force_nav(0)        = (-K2_n*e2_n - hatd_n - e1_n + eta2cdot_n)/(20.0f*_att_sp.thrust);
 
     // East or Y axis
     float e1_e          = _pos(1) - _pos_sp(1);
     float eta2c_e       = _vel_sp(1) - K1_e*e1_e;
     float e2_e          = _vel(1) - eta2c_e;
     float eta2cdot_e    = _acc_sp(1) - K1_e*(e2_e + eta2c_e - _vel_sp(1));
-    force_nav(1)        = - K2_e*e2_e - hatd_e - e1_e + eta2cdot_e;
+    force_nav(1)        = (- K2_e*e2_e - hatd_e - e1_e + eta2cdot_e)/(20.0f*_att_sp.thrust);
 
     /*Avoid wind-up, thus stop integration for the disturbance term*/
     if(force_nav(0)>tilt_max)
@@ -752,10 +757,16 @@ void ViconPosControl::automatic_disturb_rej(float dt, bool &reset_int_xy, bool &
     roll_sp = force_body(1);
 //    thrust_sp = - force_body(2);
 
+    math::Vector<3> force_nav_real;
+
+
+    force_nav_real(0) = -20.0f*_att_sp.thrust*(cosf(_yaw)*_pitch + sinf(_yaw)*_roll);
+    force_nav_real(1) = -20.0f*_att_sp.thrust*(sinf(_yaw)*_pitch - cosf(_yaw)*_roll);
+
     /* update the state */
     // North or X direction
     float s2_n          = z2_n - _vel(0);
-    z2_n_dot            = force_nav(0)+hatd_n;
+    z2_n_dot            = force_nav_real(0)+hatd_n;
     float rhos21_minus_s2_n = rhos21_n - s2_n;
     float sqrt_temp_n     = sqrt(fabs(rhos21_minus_s2_n));
     rhos21_n_dot        = rhos22_n - epsilon1_n*sqrt_temp_n*sign_f(rhos21_minus_s2_n);
@@ -768,6 +779,7 @@ void ViconPosControl::automatic_disturb_rej(float dt, bool &reset_int_xy, bool &
     z2_n += z2_n_dot*dt;
     rhos21_n += rhos21_n_dot*dt;
     rhos22_n += rhos22_n_dot*dt;
+
     if(!saturation_x)
     {
         hatd_n += hatd_n_dot*dt;
@@ -775,7 +787,7 @@ void ViconPosControl::automatic_disturb_rej(float dt, bool &reset_int_xy, bool &
     }
     // East or Y axis
     float s2_e          = z2_e - _vel(1);
-    z2_e_dot            = force_nav(1) + hatd_e;
+    z2_e_dot            = force_nav_real(1) + hatd_e;
     float rhos21_minus_s2_e   = rhos21_e - s2_e;
     float sqrt_temp_e         = sqrt(fabs(rhos21_minus_s2_e));
     rhos21_e_dot        = rhos22_e - epsilon1_e*sqrt_temp_e*sign_f(rhos21_minus_s2_e);

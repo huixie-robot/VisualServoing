@@ -15,7 +15,7 @@
  * @increment 0.01
  * @group Position Control with Disturbance
  */
-PARAM_DEFINE_FLOAT(MCD_NE_EPS1, 10.00f);
+PARAM_DEFINE_FLOAT(MCD_NE_EPS1, 5.00f);
 
  /**
  * Minimum thrust in auto thrust control
@@ -27,7 +27,7 @@ PARAM_DEFINE_FLOAT(MCD_NE_EPS1, 10.00f);
  * @increment 0.01
  * @group Position Control with Disturbance
  */
-PARAM_DEFINE_FLOAT(MCD_NE_EPS2, 10.00f);
+PARAM_DEFINE_FLOAT(MCD_NE_EPS2, 0.50f);
 
  /**
  * Minimum thrust in auto thrust control
@@ -35,11 +35,11 @@ PARAM_DEFINE_FLOAT(MCD_NE_EPS2, 10.00f);
  * @unit norm
  * @min 0.02
  * @max 30.0
- * @decimal 2
+ * @decimal 3
  * @increment 0.01
  * @group Position Control with Disturbance
  */
-PARAM_DEFINE_FLOAT(MCD_NE_K1, 0.03f);
+PARAM_DEFINE_FLOAT(MCD_NE_K1, 0.119f);
 
  /**
  * Minimum thrust in auto thrust control
@@ -47,11 +47,11 @@ PARAM_DEFINE_FLOAT(MCD_NE_K1, 0.03f);
  * @unit norm
  * @min 0.02
  * @max 30.0
- * @decimal 2
+ * @decimal 3
  * @increment 0.01
  * @group Position Control with Disturbance
  */
-PARAM_DEFINE_FLOAT(MCD_NE_K2, 0.03f);
+PARAM_DEFINE_FLOAT(MCD_NE_K2, 1.681f);
 
  /**
  * Minimum thrust in auto thrust control

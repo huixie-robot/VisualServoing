@@ -53,6 +53,8 @@
 #include <mathlib/mathlib.h>
 #include <systemlib/param/param.h>
 
+#include <controllib/blocks.hpp>
+#include <controllib/block/BlockParam.hpp>
 
 #include <uORB/uORB.h>
 #include <uORB/topics/image_features.h>
@@ -68,18 +70,18 @@
 //static void setValid(struct image_features_s *image_features, int n, bool valid);
 static bool isValid(struct image_features_s *image_features, int n);
 
-class MulticopterOPFIBVS
+class MulticopterPIDIBVS:public control::SuperBlock
 {
 public:
     /**
      * Constructor
      */
-    MulticopterOPFIBVS();
+    MulticopterPIDIBVS();
 
     /**
      * Desctructor, also kills task
      */
-     ~MulticopterOPFIBVS();
+     ~MulticopterPIDIBVS();
     /**
      * Start task.
      * @return      OK on success
@@ -109,39 +111,33 @@ private:
     void		poll_subscriptions();
 
     struct{
-        param_t l_h;
-        param_t l_hd;
-        param_t gamma_h;
-        param_t k_h;
+        param_t p_h;
+        param_t i_h;
+        param_t d_h;
 
-        param_t l_l1;
-        param_t l_ld1;
-        param_t gamma_l1;
-        param_t k_l1;
+        param_t p_l1;
+        param_t i_l1;
+        param_t d_l1;
 
-        param_t l_l2;
-        param_t l_ld2;
-        param_t gamma_l2;
-        param_t k_l2;
+        param_t p_l2;
+        param_t i_l2;
+        param_t d_l2;
 
         param_t k_psi;
     }_params_handles;
 
     struct{
-        float l_h;
-        float l_hd;
-        float gamma_h;
-        float k_h;
+        float p_h;
+        float i_h;
+        float d_h;
 
-        float l_l1;
-        float l_ld1;
-        float gamma_l1;
-        float k_l1;
+        float p_l1;
+        float i_l1;
+        float d_l1;
 
-        float l_l2;
-        float l_ld2;
-        float gamma_l2;
-        float k_l2;
+        float p_l2;
+        float i_l2;
+        float d_l2;
 
         float k_psi;
     }_params;
@@ -168,32 +164,17 @@ private:
      */
     void		task_main() __attribute__((noreturn));
 
-//    math::Vector<2> xi_y_roll;
-//    math::Vector<2> xi_u_roll;
-//    math::Vector<2> xi_d_roll;
+    control::BlockDerivative _s_1_deriv;
+    control::BlockDerivative _s_2_deriv;
+    control::BlockDerivative _s_3_deriv;
 
-//    math::Vector<2> hat_vartheta_1_roll;
-//    math::Vector<2> hat_vartheta_2_roll;
-
-    float e_sh;
-    float tilde_e_sh;
-    float hat_e_sh;
-    float hat_v_sh;
-    float C_g_hat_update;
+    float _s1_d;
+    float _s2_d;
+    float _s3_d;
 
     float e_sl1;
-    float tilde_e_sl1;
-    float hat_e_sl1;
-    float hat_v_sl1;
-    float eta_e1_update;
-
     float e_sl2;
-    float tilde_e_sl2;
-    float hat_e_sl2;
-    float hat_v_sl2;
-    float eta_e2_update;
-
-
+    float e_sh;
 
     math::Vector<3> euler_angles;
     math::Matrix<3, 3> _R;
@@ -202,7 +183,6 @@ private:
 //	perf_counter_t _timeout_count;
 //    hrt_abstime t_prev;
 //	hrt_abstime t;
-
 };
 
 namespace ibvs
@@ -212,11 +192,12 @@ namespace ibvs
 # undef ERROR
 #endif
 static const int ERROR = -1;
-MulticopterOPFIBVS      *g_control;
+MulticopterPIDIBVS      *g_control;
 }
 
 
-MulticopterOPFIBVS::MulticopterOPFIBVS():
+MulticopterPIDIBVS::MulticopterPIDIBVS():
+    SuperBlock(NULL, "IBVS"),
     _task_should_exit(false),
     _ibvs_task(-1),
     /* subscriptions file descriptor */
@@ -236,21 +217,17 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
     _att_sp_ibvs{},
     _ibvs_state{},
     // state variables
-    e_sh(0.0f),
-    tilde_e_sh(0.0f),
-    hat_e_sh(0.0f),
-    hat_v_sh(0.0f),
-    C_g_hat_update(0.0f),
+
+    _s_1_deriv(this, "VELD"),
+    _s_2_deriv(this, "VELD"),
+    _s_3_deriv(this, "VELD"),
+
+    _s1_d(0.0f),
+    _s2_d(0.0f),
+    _s3_d(0.0f),
     e_sl1(0.0f),
-    tilde_e_sl1(0.0f),
-    hat_e_sl1(0.0f),
-    hat_v_sl1(0.0f),
-    eta_e1_update(0.0f),
     e_sl2(0.0f),
-    tilde_e_sl2(0.0f),
-    hat_e_sl2(0.0f),
-    hat_v_sl2(0.0f),
-    eta_e2_update(0.0f)
+    e_sh(0.0f)
 {
     // Make the quaternion valid for control state
     _ctrl_state.q[0] = 1.0f;
@@ -264,20 +241,17 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
 //    _timeout_count = perf_alloc(PC_COUNT, "mc_ibvs_saturation timeout");
 //	t=hrt_absolute_time();
 
-    _params_handles.l_h         = param_find("IBVS_L_H");
-    _params_handles.l_hd        = param_find("IBVS_L_HD");
-    _params_handles.gamma_h     = param_find("IBVS_GAMMA_H");
-    _params_handles.k_h         = param_find("IBVS_K_H");
+    _params_handles.p_h     = param_find("IBVS_H_P");
+    _params_handles.i_h     = param_find("IBVS_H_I");
+    _params_handles.d_h     = param_find("IBVS_H_D");
 
-    _params_handles.l_l1        = param_find("IBVS_L_L1");
-    _params_handles.l_ld1       = param_find("IBVS_L_LD1");
-    _params_handles.gamma_l1    = param_find("IBVS_GAMMA_L1");
-    _params_handles.k_l1        = param_find("IBVS_K_L1");
+    _params_handles.p_l1    = param_find("IBVS_L_P");
+    _params_handles.i_l1    = param_find("IBVS_L_I");
+    _params_handles.d_l1    = param_find("IBVS_L_D");
 
-    _params_handles.l_l2        = param_find("IBVS_L_L2");
-    _params_handles.l_ld2       = param_find("IBVS_L_LD2");
-    _params_handles.gamma_l2    = param_find("IBVS_GAMMA_L2");
-    _params_handles.k_l2        = param_find("IBVS_K_L2");
+    _params_handles.p_l2    = param_find("IBVS_L_P1");
+    _params_handles.i_l2    = param_find("IBVS_L_I1");
+    _params_handles.d_l2    = param_find("IBVS_L_D1");
 
     _params_handles.k_psi       = param_find("IBVS_K_PSI");
 
@@ -285,7 +259,7 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
     parameters_update(true);
 }
 
-MulticopterOPFIBVS::~MulticopterOPFIBVS(){
+MulticopterPIDIBVS::~MulticopterPIDIBVS(){
 
     if(_ibvs_task !=-1){
         _task_should_exit = true;
@@ -304,7 +278,7 @@ MulticopterOPFIBVS::~MulticopterOPFIBVS(){
 }
 
 int
-MulticopterOPFIBVS::parameters_update(bool force)
+MulticopterPIDIBVS::parameters_update(bool force)
 {
     bool updated;
     struct parameter_update_s param_upd;
@@ -315,20 +289,17 @@ MulticopterOPFIBVS::parameters_update(bool force)
         orb_copy(ORB_ID(parameter_update), _parameter_update_sub_fd, &param_upd);
 
     if (updated || force){
-        param_get(_params_handles.l_h, &(_params.l_h));
-        param_get(_params_handles.l_hd, &(_params.l_hd));
-        param_get(_params_handles.gamma_h, &(_params.gamma_h));
-        param_get(_params_handles.k_h,&(_params.k_h));
+        param_get(_params_handles.p_h, &(_params.p_h));
+        param_get(_params_handles.i_h, &(_params.i_h));
+        param_get(_params_handles.d_h, &(_params.d_h));
 
-        param_get(_params_handles.l_l1, &(_params.l_l1));
-        param_get(_params_handles.l_ld1, &(_params.l_ld1));
-        param_get(_params_handles.gamma_l1, &(_params.gamma_l1));
-        param_get(_params_handles.k_l1,&(_params.k_l1));
+        param_get(_params_handles.p_l1, &(_params.p_l1));
+        param_get(_params_handles.i_l1, &(_params.i_l1));
+        param_get(_params_handles.d_l1, &(_params.d_l1));
 
-        param_get(_params_handles.l_l2, &(_params.l_l2));
-        param_get(_params_handles.l_ld2, &(_params.l_ld2));
-        param_get(_params_handles.gamma_l2, &(_params.gamma_l2));
-        param_get(_params_handles.k_l2,&(_params.k_l2));
+        param_get(_params_handles.p_l2, &(_params.p_l2));
+        param_get(_params_handles.i_l2, &(_params.i_l2));
+        param_get(_params_handles.d_l2, &(_params.d_l2));
 
         param_get(_params_handles.k_psi,&(_params.k_psi));
     }
@@ -337,7 +308,7 @@ MulticopterOPFIBVS::parameters_update(bool force)
 
 
 int
-MulticopterOPFIBVS::start()
+MulticopterPIDIBVS::start()
 {
     ASSERT(_ibvs_task == -1);
 
@@ -347,7 +318,7 @@ MulticopterOPFIBVS::start()
                        SCHED_DEFAULT,
                        SCHED_PRIORITY_POSITION_CONTROL,
                        1024,
-                       (main_t)&MulticopterOPFIBVS::task_main_trampoline,
+                       (main_t)&MulticopterPIDIBVS::task_main_trampoline,
                        nullptr);
 
     if (_ibvs_task < 0) {
@@ -359,13 +330,13 @@ MulticopterOPFIBVS::start()
 }
 
 void
-MulticopterOPFIBVS::task_main_trampoline(int argc, char *argv[])
+MulticopterPIDIBVS::task_main_trampoline(int argc, char *argv[])
 {
     ibvs::g_control->task_main();
 }
 
 void
-MulticopterOPFIBVS::poll_subscriptions()
+MulticopterPIDIBVS::poll_subscriptions()
 {
     bool updated;
 //  update the attitude
@@ -397,7 +368,7 @@ MulticopterOPFIBVS::poll_subscriptions()
 }
 
 void
-MulticopterOPFIBVS::task_main()
+MulticopterPIDIBVS::task_main()
 {
     warnx("started");
 
@@ -421,6 +392,10 @@ MulticopterOPFIBVS::task_main()
     bool ibvs_int_reset_roll = true;
     bool ibvs_int_reset_pitch = true;
     bool ibvs_int_reset_thrust = true;
+
+    float pitch_int = 0.0f;
+    float roll_int = 0.0f;
+    float thrust_int = 0.0f;
 
 
     uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
@@ -490,35 +465,27 @@ MulticopterOPFIBVS::task_main()
         {
 //            warnx("S1 is valid");
             e_sl1 = _img_feature.s[0];
-            tilde_e_sl1 = e_sl1 - hat_e_sl1;
-            hat_e_sl1 += (-hat_v_sl1 + _params.l_l1*tilde_e_sl1)*dt;
-            hat_v_sl1 += -_params.l_l1*_params.l_ld1*tilde_e_sl1*dt;
+            _s1_d = _s_1_deriv.update(e_sl1);
 
-            float eta_e1_hat;
             if(ibvs_int_reset_pitch)
             {
-                eta_e1_hat = 0.0f;
-                eta_e1_update = 0.0f;
+                pitch_int = 0.0f;
                 ibvs_int_reset_pitch = false;
             }
             else
             {
-                eta_e1_update += (e_sl1+tilde_e_sl1)*dt;
-                eta_e1_hat = -_params.gamma_l1*(e_sl1+tilde_e_sl1) -  _params.gamma_l1*_params.l_ld1*eta_e1_update;
+                pitch_int += e_sl1*dt;
             }
 
-            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.l_ld1*e_sl1) + eta_e1_hat;
+            _att_sp_ibvs.pitch_body = -(_params.p_l1*e_sl1 + _params.i_l1*pitch_int + _params.d_l1*_s1_d);
 
-            _ibvs_state.hat_e_sl1 = hat_e_sl1;
-            _ibvs_state.hat_v_sl1 = hat_v_sl1;
-            _ibvs_state.eta_e1_hat = eta_e1_hat;
+            _ibvs_state.hat_e_sl1 = pitch_int;
 
             _att_sp_ibvs.valid += ((uint8_t)2);
             _ibvs_state.valid += ((uint8_t)2);
         }
         else
         {
-            eta_e1_update = 0.0f;
             _att_sp_ibvs.pitch_body = 0.0f;
         }
 
@@ -527,34 +494,27 @@ MulticopterOPFIBVS::task_main()
         {
 //            warnx("S2 is valid");
             e_sl2 = _img_feature.s[1];
-            tilde_e_sl2 = e_sl2 - hat_e_sl2;
-            hat_e_sl2 += (-hat_v_sl2 + _params.l_l2*tilde_e_sl2)*dt;
-            hat_v_sl2 += -_params.l_l2*_params.l_ld2*tilde_e_sl2*dt;
+            _s2_d = _s_2_deriv.update(e_sl2);
 
-            float eta_e2_hat;
             if(ibvs_int_reset_roll)
             {
-                eta_e2_hat = 0.0f;
-                eta_e2_update = 0.0f;
+                roll_int = 0.0f;
                 ibvs_int_reset_roll = false;
             }
             else
             {
-                eta_e2_update += (e_sl2+tilde_e_sl2)*dt;
-                eta_e2_hat = _params.gamma_l2*(e_sl2+tilde_e_sl2) +  _params.gamma_l2*_params.l_ld2*eta_e2_update;
+                roll_int += e_sl2*dt;
             }
 
-            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.l_ld2*e_sl2)+ eta_e2_hat;
-            _att_sp_ibvs.valid += ((uint8_t)1);
+            _att_sp_ibvs.roll_body = (_params.p_l2*e_sl2 + _params.i_l2*roll_int + _params.d_l2*_s1_d);
 
-            _ibvs_state.hat_e_sl2 = hat_e_sl2;
-            _ibvs_state.hat_v_sl2 = hat_v_sl2;
-            _ibvs_state.eta_e2_hat = eta_e2_hat;
+            _ibvs_state.hat_e_sl2 = roll_int;
+
             _ibvs_state.valid += ((uint8_t)1);
+            _att_sp_ibvs.valid += ((uint8_t)1);
         }
         else
         {
-            eta_e2_update = 0.0f;
             _att_sp_ibvs.roll_body = 0.0f;
         }
 
@@ -562,34 +522,27 @@ MulticopterOPFIBVS::task_main()
         if(isValid(&_img_feature,2))
         {
             e_sh = _img_feature.s[2] - 1.0f;
-            tilde_e_sh = e_sh - hat_e_sh;
-            hat_e_sh += (-hat_v_sh + _params.l_h*tilde_e_sh)*dt;
-            hat_v_sh += -_params.l_h*_params.l_hd*tilde_e_sh*dt;
+            _s3_d = _s_3_deriv.update(e_sh);
 
-            float C_g_hat;
             if(ibvs_int_reset_thrust)
             {
-                C_g_hat = 0.0f;
-                C_g_hat_update = 0.0f;
+                thrust_int = 0.0f;
                 ibvs_int_reset_thrust = false;
             }
             else
             {
-                C_g_hat_update += (e_sh + tilde_e_sh)*dt;
-                C_g_hat = -_params.gamma_h*(e_sh + tilde_e_sh) - _params.gamma_h*_params.l_hd*C_g_hat_update;
+                thrust_int += e_sh*dt;
             }
 
-            _att_sp_ibvs.thrust = _params.k_h*(hat_v_sh + (_params.l_hd-_params.l_h)*tilde_e_sh-_params.l_hd*e_sh) + C_g_hat;
-            _att_sp_ibvs.valid += ((uint8_t)4);
+            _att_sp_ibvs.thrust = -(_params.p_h*e_sh + _params.i_h*thrust_int + _params.d_h*_s3_d);
 
-            _ibvs_state.hat_e_sh = hat_e_sh;
-            _ibvs_state.hat_v_sh = hat_v_sh;
-            _ibvs_state.c_g_hat = C_g_hat;
+
+            _ibvs_state.hat_e_sh = thrust_int;
+            _att_sp_ibvs.valid += ((uint8_t)4);
             _ibvs_state.valid += ((uint8_t)4);
         }
         else
         {
-            C_g_hat_update = 0.0f;
             _att_sp_ibvs.thrust = 0.0f;
             _ibvs_state.valid = 0;
         }
@@ -648,7 +601,7 @@ MulticopterOPFIBVS::task_main()
 }
 
 
-void MulticopterOPFIBVS::status()
+void MulticopterPIDIBVS::status()
 {
 //    warnx("IBVS Gain: IBVS_IZ_P %.4f",(double)_params.ibvs_kz);
     warnx("centeroid features valid : %d", _img_feature.valid);
@@ -656,12 +609,12 @@ void MulticopterOPFIBVS::status()
             (double)_img_feature.s[2], (double)_img_feature.s[3], (double)_img_feature.s[4]);
     warnx("Reference roll pitch yaw thrust: %8.4f %8.4f %8.4f %8.4f",(double)_att_sp_ibvs.roll_body,
           (double)_att_sp_ibvs.pitch_body,(double)_att_sp_ibvs.yaw_body, (double)_att_sp_ibvs.thrust);
-    warnx("e_sh:%.4f, hat_esh:%.4f, tilde_esh:%.4f, hat_vsh:%.4f, C_ghat_update: %.4f"
-          , (double)e_sh, (double)hat_e_sh, (double)tilde_e_sh, (double)hat_v_sh, (double)C_g_hat_update);
-    warnx("e_sl1:%.4f, hat_esl1:%.4f, tilde_esl1:%.4f, hat_vsl1:%.4f, eta_1_update: %.4f"
-          , (double)e_sl1, (double)hat_e_sl1, (double)tilde_e_sl1, (double)hat_v_sl1, (double)eta_e1_update);
-    warnx("e_sl2:%.4f, hat_esl2:%.4f, tilde_esl2:%.4f, hat_vsl2:%.4f, eta_2_update: %.4f"
-          , (double)e_sl2, (double)hat_e_sl2, (double)tilde_e_sl2, (double)hat_v_sl2, (double)eta_e2_update);
+//    warnx("e_sh:%.4f, hat_esh:%.4f, tilde_esh:%.4f, hat_vsh:%.4f, C_ghat_update: %.4f"
+//          , (double)e_sh, (double)hat_e_sh, (double)tilde_e_sh, (double)hat_v_sh, (double)C_g_hat_update);
+//    warnx("e_sl1:%.4f, hat_esl1:%.4f, tilde_esl1:%.4f, hat_vsl1:%.4f, eta_1_update: %.4f"
+//          , (double)e_sl1, (double)hat_e_sl1, (double)tilde_e_sl1, (double)hat_v_sl1, (double)eta_e1_update);
+//    warnx("e_sl2:%.4f, hat_esl2:%.4f, tilde_esl2:%.4f, hat_vsl2:%.4f, eta_2_update: %.4f"
+//          , (double)e_sl2, (double)hat_e_sl2, (double)tilde_e_sl2, (double)hat_v_sl2, (double)eta_e2_update);
 }
 
 /**
@@ -669,10 +622,10 @@ void MulticopterOPFIBVS::status()
  *
  * @ingroup apps
  */
-extern "C" __EXPORT int mc_ibvs_hg_main(int argc, char *argv[]);
+extern "C" __EXPORT int mc_ibvs_pid_main(int argc, char *argv[]);
 
 
-int mc_ibvs_hg_main(int argc, char *argv[])
+int mc_ibvs_pid_main(int argc, char *argv[])
 {
     if (argc < 2)
             errx(1, "missing command usage: mc_ibvs {start|stop|status}");
@@ -682,7 +635,7 @@ int mc_ibvs_hg_main(int argc, char *argv[])
         if(ibvs::g_control != nullptr)
             errx(1, "already running");
 
-        ibvs::g_control = new MulticopterOPFIBVS;
+        ibvs::g_control = new MulticopterPIDIBVS;
 
         if (ibvs::g_control == nullptr)
             errx(1, "alloc failed");
@@ -718,15 +671,6 @@ int mc_ibvs_hg_main(int argc, char *argv[])
     return 1;
 }
 
-//static void setValid(struct image_features_s *image_features, int n, bool valid)
-//{
-//    if (image_features!=NULL) {
-//        if (n>=0&&n<MAX_FEATURES) {
-//            if (valid) image_features->valid |= 1 << n;
-//            else image_features->valid &= ~(1 << n);
-//        }
-//    }
-//}
 
 static bool isValid(struct image_features_s *image_features, int n)
 {

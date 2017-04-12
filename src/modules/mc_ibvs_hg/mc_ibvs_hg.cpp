@@ -113,16 +113,19 @@ private:
         param_t l_hd;
         param_t gamma_h;
         param_t k_h;
+        param_t alpha_h;
 
         param_t l_l1;
         param_t l_ld1;
         param_t gamma_l1;
         param_t k_l1;
+        param_t alpha_l1;
 
         param_t l_l2;
         param_t l_ld2;
         param_t gamma_l2;
         param_t k_l2;
+        param_t alpha_l2;
 
         param_t k_psi;
     }_params_handles;
@@ -132,16 +135,19 @@ private:
         float l_hd;
         float gamma_h;
         float k_h;
+        float alpha_h;
 
         float l_l1;
         float l_ld1;
         float gamma_l1;
         float k_l1;
+        float alpha_l1;
 
         float l_l2;
         float l_ld2;
         float gamma_l2;
         float k_l2;
+        float alpha_l2;
 
         float k_psi;
     }_params;
@@ -268,16 +274,19 @@ MulticopterOPFIBVS::MulticopterOPFIBVS():
     _params_handles.l_hd        = param_find("IBVS_L_HD");
     _params_handles.gamma_h     = param_find("IBVS_GAMMA_H");
     _params_handles.k_h         = param_find("IBVS_K_H");
+    _params_handles.alpha_h     = param_find("IBVS_ALPHA_H");
 
     _params_handles.l_l1        = param_find("IBVS_L_L1");
     _params_handles.l_ld1       = param_find("IBVS_L_LD1");
     _params_handles.gamma_l1    = param_find("IBVS_GAMMA_L1");
     _params_handles.k_l1        = param_find("IBVS_K_L1");
+    _params_handles.alpha_l1    = param_find("IBVS_ALPHA_L1");
 
     _params_handles.l_l2        = param_find("IBVS_L_L2");
     _params_handles.l_ld2       = param_find("IBVS_L_LD2");
     _params_handles.gamma_l2    = param_find("IBVS_GAMMA_L2");
     _params_handles.k_l2        = param_find("IBVS_K_L2");
+    _params_handles.alpha_l2    = param_find("IBVS_ALPHA_L2");
 
     _params_handles.k_psi       = param_find("IBVS_K_PSI");
 
@@ -319,16 +328,19 @@ MulticopterOPFIBVS::parameters_update(bool force)
         param_get(_params_handles.l_hd, &(_params.l_hd));
         param_get(_params_handles.gamma_h, &(_params.gamma_h));
         param_get(_params_handles.k_h,&(_params.k_h));
+        param_get(_params_handles.alpha_h,&(_params.alpha_h));
 
         param_get(_params_handles.l_l1, &(_params.l_l1));
         param_get(_params_handles.l_ld1, &(_params.l_ld1));
         param_get(_params_handles.gamma_l1, &(_params.gamma_l1));
         param_get(_params_handles.k_l1,&(_params.k_l1));
+        param_get(_params_handles.alpha_l1,&(_params.alpha_l1));
 
         param_get(_params_handles.l_l2, &(_params.l_l2));
         param_get(_params_handles.l_ld2, &(_params.l_ld2));
         param_get(_params_handles.gamma_l2, &(_params.gamma_l2));
         param_get(_params_handles.k_l2,&(_params.k_l2));
+        param_get(_params_handles.alpha_l2,&(_params.alpha_l2));
 
         param_get(_params_handles.k_psi,&(_params.k_psi));
     }
@@ -503,11 +515,11 @@ MulticopterOPFIBVS::task_main()
             }
             else
             {
-                eta_e1_update += (e_sl1+tilde_e_sl1)*dt;
-                eta_e1_hat = -_params.gamma_l1*(e_sl1+tilde_e_sl1) -  _params.gamma_l1*_params.l_ld1*eta_e1_update;
+                eta_e1_update += (_params.alpha_l1*e_sl1+_params.l_ld1*tilde_e_sl1)*dt;
+                eta_e1_hat = -_params.gamma_l1*(e_sl1+tilde_e_sl1) -  _params.gamma_l1*eta_e1_update;
             }
 
-            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.l_ld1*e_sl1) + eta_e1_hat;
+            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.alpha_l1*e_sl1) + eta_e1_hat;
 
             _ibvs_state.hat_e_sl1 = hat_e_sl1;
             _ibvs_state.hat_v_sl1 = hat_v_sl1;
@@ -540,11 +552,11 @@ MulticopterOPFIBVS::task_main()
             }
             else
             {
-                eta_e2_update += (e_sl2+tilde_e_sl2)*dt;
-                eta_e2_hat = _params.gamma_l2*(e_sl2+tilde_e_sl2) +  _params.gamma_l2*_params.l_ld2*eta_e2_update;
+                eta_e2_update += (_params.alpha_l2*e_sl2+_params.l_ld2*tilde_e_sl2)*dt;
+                eta_e2_hat = _params.gamma_l2*(e_sl2+tilde_e_sl2) +  _params.gamma_l2*eta_e2_update;
             }
 
-            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.l_ld2*e_sl2)+ eta_e2_hat;
+            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.alpha_l2*e_sl2)+ eta_e2_hat;
             _att_sp_ibvs.valid += ((uint8_t)1);
 
             _ibvs_state.hat_e_sl2 = hat_e_sl2;
@@ -575,11 +587,11 @@ MulticopterOPFIBVS::task_main()
             }
             else
             {
-                C_g_hat_update += (e_sh + tilde_e_sh)*dt;
-                C_g_hat = -_params.gamma_h*(e_sh + tilde_e_sh) - _params.gamma_h*_params.l_hd*C_g_hat_update;
+                C_g_hat_update += (_params.alpha_h*e_sh + _params.l_hd*tilde_e_sh)*dt;
+                C_g_hat = -_params.gamma_h*(e_sh + tilde_e_sh) - _params.gamma_h*C_g_hat_update;
             }
 
-            _att_sp_ibvs.thrust = _params.k_h*(hat_v_sh + (_params.l_hd-_params.l_h)*tilde_e_sh-_params.l_hd*e_sh) + C_g_hat;
+            _att_sp_ibvs.thrust = _params.k_h*(hat_v_sh + (_params.l_hd-_params.l_h)*tilde_e_sh-_params.alpha_h*e_sh) + C_g_hat;
             _att_sp_ibvs.valid += ((uint8_t)4);
 
             _ibvs_state.hat_e_sh = hat_e_sh;

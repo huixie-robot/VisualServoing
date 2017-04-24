@@ -38,7 +38,8 @@ fi
 
 #if mc_pos_control start
 #if mc_vicon_pos_control start
-if mc_pos_disturb start
+#if mc_pos_disturb start
+if mc_vicon_pos_control start
 then
 else
 	# try the multiplatform version

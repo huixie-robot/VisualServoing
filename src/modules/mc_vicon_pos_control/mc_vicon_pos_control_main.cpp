@@ -1022,6 +1022,8 @@ void ViconControl::task_main(){
 
     uint8_t prev_nav_state = vehicle_status_s::NAVIGATION_STATE_MANUAL;
 
+    bool ground_set = false;
+    math::Vector<3> ground_pos;
 
 //    int count_traj=1;
 //    hrt_abstime time = hrt_absolute_time();
@@ -1071,7 +1073,6 @@ void ViconControl::task_main(){
                 _vel(1) = _local_pos.vy;
                 _vel(2) = _local_pos.vz;
             }
-
             _vel_err_d(0) = _vel_x_deriv.update(-_vel(0));
             _vel_err_d(1) = _vel_y_deriv.update(-_vel(1));
             _vel_err_d(2) = _vel_z_deriv.update(-_vel(2));
@@ -1079,6 +1080,14 @@ void ViconControl::task_main(){
             _pos_err_d(0) = _pos_x_deriv.update(-_pos(0));
             _pos_err_d(1) = _pos_y_deriv.update(-_pos(1));
             _pos_err_d(2) = _pos_z_deriv.update(-_pos(2));
+
+            if(!ground_set)
+            {
+                ground_pos(0) = _pos(0);
+                ground_pos(1) = _pos(1);
+                ground_pos(2) = _pos(2);
+                ground_set = true;
+            }
         }
 
         if (_control_mode.flag_armed && !was_armed) {
@@ -1135,6 +1144,18 @@ void ViconControl::task_main(){
                     if(_control_mode.flag_armed)
                         reset_int_z_manual = true;
                 }
+
+//                if(prev_nav_state !=vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION)
+//                {
+//                    _pos_sp(2) = ground_pos(2) - 1.5f;
+//                    _pos_sp(1) = ground_pos(1) + 0.15f;
+//                    _pos_sp(0) = ground_pos(0) - 0.15f;
+//                    reset_int_z = true;
+//                    reset_int_xy = true;
+//                    if(_control_mode.flag_armed)
+//                        reset_int_z_manual = true;
+//                }
+
 
 //                if(time> print_time)
 //                {

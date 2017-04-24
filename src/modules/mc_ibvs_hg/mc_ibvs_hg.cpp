@@ -515,11 +515,14 @@ MulticopterOPFIBVS::task_main()
             }
             else
             {
-                eta_e1_update += (_params.alpha_l1*e_sl1+_params.l_ld1*tilde_e_sl1)*dt;
-                eta_e1_hat = -_params.gamma_l1*(e_sl1+tilde_e_sl1) -  _params.gamma_l1*eta_e1_update;
+//                eta_e1_update += (_params.alpha_l1*e_sl1+_params.l_ld1*tilde_e_sl1)*dt;
+                eta_e1_update += (_params.alpha_l1*e_sl1)*dt;
+//                eta_e1_hat = -_params.gamma_l1*(e_sl1+tilde_e_sl1) -  _params.gamma_l1*eta_e1_update;
+                eta_e1_hat = -_params.gamma_l1*(e_sl1) -  _params.gamma_l1*eta_e1_update;
             }
 
-            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.alpha_l1*e_sl1) + eta_e1_hat;
+//            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1 + (_params.l_ld1-_params.l_l1)*tilde_e_sl1 - _params.alpha_l1*e_sl1) + eta_e1_hat;
+            _att_sp_ibvs.pitch_body = _params.k_l1*(hat_v_sl1  - _params.alpha_l1*e_sl1) + eta_e1_hat;
 
             _ibvs_state.hat_e_sl1 = hat_e_sl1;
             _ibvs_state.hat_v_sl1 = hat_v_sl1;
@@ -552,11 +555,14 @@ MulticopterOPFIBVS::task_main()
             }
             else
             {
-                eta_e2_update += (_params.alpha_l2*e_sl2+_params.l_ld2*tilde_e_sl2)*dt;
-                eta_e2_hat = _params.gamma_l2*(e_sl2+tilde_e_sl2) +  _params.gamma_l2*eta_e2_update;
+//                eta_e2_update += (_params.alpha_l2*e_sl2+_params.l_ld2*tilde_e_sl2)*dt;
+                eta_e2_update += (_params.alpha_l2*e_sl2)*dt;
+//                eta_e2_hat = _params.gamma_l2*(e_sl2+tilde_e_sl2) +  _params.gamma_l2*eta_e2_update;
+                eta_e2_hat = _params.gamma_l2*(e_sl2) +  _params.gamma_l2*eta_e2_update;
             }
 
-            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.alpha_l2*e_sl2)+ eta_e2_hat;
+//            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 + (_params.l_ld2-_params.l_l2)*tilde_e_sl2 - _params.alpha_l2*e_sl2)+ eta_e2_hat;
+            _att_sp_ibvs.roll_body = -_params.k_l2*(hat_v_sl2 - _params.alpha_l2*e_sl2)+ eta_e2_hat;
             _att_sp_ibvs.valid += ((uint8_t)1);
 
             _ibvs_state.hat_e_sl2 = hat_e_sl2;
@@ -573,6 +579,9 @@ MulticopterOPFIBVS::task_main()
 
         if(isValid(&_img_feature,2))
         {
+//            float e_shstar;
+//            e_shstar = 1+e_sl1*e_sl1 + e_sl2*e_sl1;
+//            e_sh = _img_feature.s[2] - e_shstar;
             e_sh = _img_feature.s[2] - 1.0f;
             tilde_e_sh = e_sh - hat_e_sh;
             hat_e_sh += (-hat_v_sh + _params.l_h*tilde_e_sh)*dt;
@@ -587,11 +596,14 @@ MulticopterOPFIBVS::task_main()
             }
             else
             {
-                C_g_hat_update += (_params.alpha_h*e_sh + _params.l_hd*tilde_e_sh)*dt;
-                C_g_hat = -_params.gamma_h*(e_sh + tilde_e_sh) - _params.gamma_h*C_g_hat_update;
+//                C_g_hat_update += (_params.alpha_h*e_sh + _params.l_hd*tilde_e_sh)*dt;
+                C_g_hat_update += (_params.alpha_h*e_sh)*dt;
+//                C_g_hat = -_params.gamma_h*(e_sh + tilde_e_sh) - _params.gamma_h*C_g_hat_update;
+                C_g_hat = -_params.gamma_h*(e_sh) - _params.gamma_h*C_g_hat_update;
             }
 
-            _att_sp_ibvs.thrust = _params.k_h*(hat_v_sh + (_params.l_hd-_params.l_h)*tilde_e_sh-_params.alpha_h*e_sh) + C_g_hat;
+//            _att_sp_ibvs.thrust = _params.k_h*(hat_v_sh + (_params.l_hd-_params.l_h)*tilde_e_sh-_params.alpha_h*e_sh) + C_g_hat;
+            _att_sp_ibvs.thrust = _params.k_h*(hat_v_sh -_params.alpha_h*e_sh) + C_g_hat;
             _att_sp_ibvs.valid += ((uint8_t)4);
 
             _ibvs_state.hat_e_sh = hat_e_sh;

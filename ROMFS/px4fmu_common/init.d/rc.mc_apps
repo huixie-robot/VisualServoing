@@ -9,18 +9,21 @@
 # Estimator group selction
 #
 # INAV
-if param compare SYS_MC_EST_GROUP 0
-then
-	attitude_estimator_q start
-	position_estimator_inav start
-fi
+#if param compare SYS_MC_EST_GROUP 0
+#then
+#	attitude_estimator_q start
+#	position_estimator_inav start
+#fi
 
 # LPE
-if param compare SYS_MC_EST_GROUP 1
-then
-	attitude_estimator_q start
-	local_position_estimator start
-fi
+#if param compare SYS_MC_EST_GROUP 1
+#then
+#	attitude_estimator_q start
+#	local_position_estimator start
+#fi
+
+attitude_estimator_q start
+local_position_estimator start
 
 # EKF
 if param compare SYS_MC_EST_GROUP 2
